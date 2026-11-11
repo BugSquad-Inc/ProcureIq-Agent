@@ -1,0 +1,42 @@
+{
+  "benchmark": "ProcureIQ Dynamic Tool RAG Scale Test",
+  "tiers": [
+    {
+      "total_tools": 50,
+      "top_k_bound": 5,
+      "queries_tested": 10,
+      "recall_at_5": 1.0,
+      "mrr_at_5": 1.0,
+      "avg_latency_ms": 9.24,
+      "p95_latency_ms": 10.3
+    },
+    {
+      "total_tools": 100,
+      "top_k_bound": 5,
+      "queries_tested": 10,
+      "recall_at_5": 1.0,
+      "mrr_at_5": 1.0,
+      "avg_latency_ms": 10.8,
+      "p95_latency_ms": 11.53
+    },
+    {
+      "total_tools": 250,
+      "top_k_bound": 5,
+      "queries_tested": 10,
+      "recall_at_5": 1.0,
+      "mrr_at_5": 1.0,
+      "avg_latency_ms": 18.23,
+      "p95_latency_ms": 19.71
+    },
+    {
+      "total_tools": 500,
+      "top_k_bound": 5,
+      "queries_tested": 10,
+      "recall_at_5": 1.0,
+      "mrr_at_5": 1.0,
+      "avg_latency_ms": 29.36,
+      "p95_latency_ms": 34.19
+    }
+  ],
+  "kept_synthetic_tools": false
+}

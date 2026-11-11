@@ -1,0 +1,42 @@
+services:
+  # ── PostgreSQL with pgvector ──────────────────────────────────────────────
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: procureiq_db
+    environment:
+      POSTGRES_USER: procureiq
+      POSTGRES_PASSWORD: procureiq_dev
+      POSTGRES_DB: procureiq
+    ports:
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U procureiq"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── FastAPI Backend ───────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: procureiq_backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://procureiq:procureiq_dev@db:5432/procureiq
+      SYNC_DATABASE_URL: postgresql://procureiq:procureiq_dev@db:5432/procureiq
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - ${USERPROFILE:-~}/.cache/huggingface:/root/.cache/huggingface
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  pgdata:

@@ -1,0 +1,49 @@
+# ── Environment & Secrets ────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ── Python & Testing ─────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ── Frontend (Node / Vite) ───────────────────────────────────────────────────
+node_modules/
+frontend/node_modules/
+frontend/dist/
+dist/
+.vite/
+npm-debug.log*
+yarn-error.log*
+
+# ── Local Models, Storage & Databases ────────────────────────────────────────
+models/
+data/
+*.gguf
+*.bin
+*.safetensors
+*.db
+*.sqlite
+*.sqlite3
+
+# ── Logs, OS & IDEs ──────────────────────────────────────────────────────────
+*.log
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/

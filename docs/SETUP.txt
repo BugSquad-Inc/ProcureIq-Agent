@@ -1,0 +1,389 @@
+# ProcureIQ Agent — Complete Setup & Usage Guide
+
+> Enterprise Procurement Intelligence Agent  
+> LangGraph · Gemini · pgvector · Hybrid RAG  
+> Built for the Datazoic AI Engineer Interview
+
+---
+
+## What's In This Package
+
+```
+procureiq-agent/
+├── backend/
+│   ├── app/
+│   │   ├── agents/              ← LangGraph StateGraph + 4 nodes
+│   │   │   ├── graph.py         ← Build & compile the agent graph
+│   │   │   ├── state.py         ← AgentState TypedDict
+│   │   │   └── nodes/
+│   │   │       ├── intent_classifier.py   ← Domain routing (Gemini Flash)
+│   │   │       ├── tool_retriever.py      ← Semantic tool search (THE CORE THESIS)
+│   │   │       ├── executor.py            ← Tool execution + audit logging
+│   │   │       └── synthesizer.py         ← Response generation (Gemini)
+│   │   ├── core/                ← COPIED from RAG-Entreprise (battle-tested)
+│   │   │   ├── hybrid_search.py ← pgvector HNSW + BM25 + RRF fusion
+│   │   │   ├── reranking.py     ← Cross-encoder reranker
+│   │   │   └── embedding/       ← EmbeddingProvider ABC + BGE/OpenAI/Hash
+│   │   ├── tools/               ← The 3 tool types
+│   │   │   ├── registry.py      ← Tool CRUD + auto-embedding
+│   │   │   ├── rag_tool.py      ← Knowledge base Q&A with citations
+│   │   │   ├── system_search.py ← Tool capability + audit history search
+│   │   │   └── paypal_adapter.py ← PayPal API + demo mock responses
+│   │   ├── api/
+│   │   │   ├── chat.py          ← POST /api/chat, GET /api/sessions/{id}/history
+│   │   │   └── tools_api.py     ← GET/POST /api/tools, POST /api/kb/upload
+│   │   ├── infrastructure/
+│   │   │   └── database/
+│   │   │       ├── models.py    ← Tool, KBChunk, Session, AuditLog ORM models
+│   │   │       └── session.py   ← SQLAlchemy async engine
+│   │   ├── config.py            ← All settings via .env
+│   │   └── main.py              ← FastAPI app entrypoint
+│   ├── alembic/
+│   │   └── versions/
+│   │       └── 001_initial_schema.py ← DB migration (tools, kb_chunks, audit_log)
+│   ├── requirements.txt
+│   ├── alembic.ini
+│   └── Dockerfile
+├── scripts/
+│   └── seed_tools.py            ← Seeds 50 PayPal/procurement tools
+├── docs/
+│   └── SETUP.md                 ← This file
+├── .env.example
+└── docker-compose.yml
+```
+
+---
+
+## Prerequisites
+
+| Requirement | Version | Notes |
+|-------------|---------|-------|
+| Python | 3.11+ | 3.12 also works |
+| PostgreSQL | 15+ | With pgvector extension |
+| Node.js | 18+ | Only if you add the frontend |
+| Docker | 24+ | Optional — for one-command setup |
+| Gemini API Key | — | Free tier works for demo |
+
+---
+
+## Option A: One-Command Setup (Docker — Recommended)
+
+### Step 1: Copy .env
+```bash
+cp .env.example .env
+# Edit .env and set your GEMINI_API_KEY
+```
+
+### Step 2: Start everything
+```bash
+docker-compose up --build
+```
+
+This starts:
+- PostgreSQL 16 with pgvector on port 5432
+- FastAPI backend on port 8000
+
+### Step 3: Seed tools
+```bash
+docker-compose exec backend python scripts/seed_tools.py
+```
+
+### Step 4: Test
+```bash
+curl http://localhost:8000/health
+# → {"status":"ok","version":"1.0.0"}
+
+curl -X POST http://localhost:8000/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "What was my total sales last month?"}'
+```
+
+---
+
+## Option B: Local Development Setup
+
+### Step 1: PostgreSQL with pgvector
+
+**Option B1: Docker just for the DB** (easiest)
+```bash
+docker run -d \
+  --name procureiq_db \
+  -e POSTGRES_USER=procureiq \
+  -e POSTGRES_PASSWORD=procureiq_dev \
+  -e POSTGRES_DB=procureiq \
+  -p 5432:5432 \
+  pgvector/pgvector:pg16
+```
+
+**Option B2: Local PostgreSQL** — install pgvector extension:
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+CREATE USER procureiq WITH PASSWORD 'procureiq_dev';
+CREATE DATABASE procureiq OWNER procureiq;
+```
+
+### Step 2: Python Environment
+```bash
+cd backend
+python -m venv .venv
+
+# Windows
+.venv\Scripts\activate
+
+# macOS/Linux
+source .venv/bin/activate
+```
+
+### Step 3: Install Dependencies
+```bash
+pip install -r requirements.txt
+```
+
+> **Note on PyTorch**: `sentence-transformers` requires PyTorch. For CPU-only:
+> ```bash
+> pip install torch --index-url https://download.pytorch.org/whl/cpu
+> ```
+> For GPU: install the matching CUDA version from pytorch.org.
+>
+> **No GPU, no problem**: set `EMBEDDING_PROVIDER=hash` in `.env` for a zero-dependency offline fallback. Tool retrieval will use lexical search only.
+
+### Step 4: Configure Environment
+```bash
+cp ../.env.example .env
+```
+Edit `.env`:
+```
+GEMINI_API_KEY=your_key_here    # Required for LLM responses
+EMBEDDING_PROVIDER=local         # or "hash" for zero-dep mode
+```
+
+### Step 5: Run Database Migration
+```bash
+alembic upgrade head
+```
+
+### Step 6: Seed the Tool Registry
+```bash
+# From the backend/ directory:
+python ../scripts/seed_tools.py
+```
+Expected output:
+```
+  [+] send_payment (payments)
+  [+] create_invoice (invoicing)
+  [+] get_sales_report (analytics)
+  ... (50 tools total)
+✅ Seeded 50 new tools.
+```
+
+### Step 7: Start the Backend
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+Open: http://localhost:8000/docs — you'll see the full Swagger UI.
+
+---
+
+## Enable LangSmith Tracing (Highly Recommended for Demo)
+
+LangSmith gives you live trace trees showing every node execution, tool selection, and token usage.
+
+1. Create a free account at https://smith.langchain.com
+2. Create a project called `procureiq-agent`
+3. Copy your API key
+4. Set in `.env`:
+   ```
+   LANGCHAIN_TRACING_V2=true
+   LANGCHAIN_API_KEY=ls__your_key_here
+   LANGCHAIN_PROJECT=procureiq-agent
+   ```
+5. Restart the backend — every `/api/chat` call now creates a trace.
+
+---
+
+## API Endpoints
+
+### Chat
+```bash
+# Send a message
+POST /api/chat
+{
+  "message": "Create an invoice for $500 to vendor@example.com",
+  "session_id": "optional-session-id"   # auto-generated if omitted
+}
+
+# Response
+{
+  "session_id": "uuid-here",
+  "response": "I'll create an invoice for $500...",
+  "domain": "invoicing",
+  "tool_used": "create_invoice",
+  "sources": null
+}
+```
+
+### Tool Retrieval (THE DEMO ENDPOINT)
+```bash
+# This shows the core thesis: query → semantic tool retrieval
+POST /api/tools/retrieve
+{
+  "query": "send payment to a vendor",
+  "top_k": 5
+}
+
+# Returns the top-5 most relevant tools without exposing all 50 to the LLM
+```
+
+### Knowledge Base
+```bash
+# Upload a document (PDF, DOCX, or .txt)
+POST /api/kb/upload
+# multipart form with file field
+
+# Then ask questions about it
+POST /api/chat
+{ "message": "What does our supplier SLA say about penalties?" }
+```
+
+### Session History
+```bash
+GET /api/sessions/{session_id}/history
+# Returns all tool calls made in this session (from audit_log)
+```
+
+---
+
+## Demo Script (For Interview)
+
+Run these in sequence to demonstrate the full system:
+
+```bash
+BASE="http://localhost:8000"
+
+# 1. Show tool retrieval (core thesis)
+echo "=== Semantic Tool Retrieval (50 tools, returns top-5) ==="
+curl -s -X POST $BASE/api/tools/retrieve \
+  -H "Content-Type: application/json" \
+  -d '{"query": "send payment to vendor"}' | python -m json.tool
+
+# 2. Analytics query
+echo "=== Analytics Query ==="
+curl -s -X POST $BASE/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "What was our total sales volume last month?", "session_id": "demo-1"}' | python -m json.tool
+
+# 3. Dispute query
+echo "=== Dispute Query ==="
+curl -s -X POST $BASE/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Is there an open dispute from user_123?", "session_id": "demo-1"}' | python -m json.tool
+
+# 4. System search
+echo "=== System Search ==="
+curl -s -X POST $BASE/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "What tools are available for managing invoices?", "session_id": "demo-1"}' | python -m json.tool
+
+# 5. Session history
+echo "=== Session History ==="
+curl -s $BASE/api/sessions/demo-1/history | python -m json.tool
+```
+
+---
+
+## Proving the Core Thesis in the Interview
+
+The endpoint `POST /api/tools/retrieve` is your proof.
+
+```python
+# Show this code to the interviewer:
+# 1. We have 50 tools (can scale to 500 or 5000)
+# 2. For ANY user query, we retrieve only the TOP-5 relevant tools
+# 3. The LLM ONLY sees those 5 tool schemas — never all 50
+# 4. Accuracy stays high regardless of total tool count
+
+# Run the retrieval test:
+import requests
+
+queries = [
+    "send invoice for $500 to john@example.com",
+    "what was my total sales volume last month",
+    "is there a dispute open from user_123",
+    "what tools are available for managing invoices",
+]
+
+for q in queries:
+    resp = requests.post("http://localhost:8000/api/tools/retrieve",
+                         json={"query": q, "top_k": 5})
+    tools = resp.json()["tools"]
+    print(f"\nQuery: {q}")
+    print(f"Top tools: {[t['name'] for t in tools]}")
+```
+
+---
+
+## Architecture Decisions (Talking Points)
+
+### Why LangGraph over LangChain / CrewAI?
+- **Stateful**: Persistent session state via PostgreSQL checkpointer
+- **Branching**: Conditional edges for HITL gate on write operations
+- **Debuggable**: Native LangSmith integration, replay any failed run
+- **Production**: Built-in error recovery, not just happy-path chains
+
+### Why Hybrid Search (HNSW + BM25 + RRF) for Tools?
+- Pure vector search misses keyword-exact tool names
+- Pure BM25 misses semantic synonyms ("wire transfer" ≠ "send_payment" in BM25)
+- RRF fusion consistently outperforms either alone by 15-20% recall@5
+
+### Why pgvector over Pinecone/Weaviate?
+- **Single database**: tools + knowledge base + sessions + audit in one PostgreSQL
+- **Zero infra cost**: runs in the same Docker container
+- **SQL joins**: can filter by domain, is_active before vector search
+- **Production path**: drop-in upgrade to Supabase or Neon for managed hosting
+
+---
+
+## Extending the System
+
+### Add a New API Collection (e.g., Stripe)
+
+1. Add tools to `scripts/seed_tools.py`:
+   ```python
+   {"name": "stripe_create_charge", "domain": "payments",
+    "description": "Create a Stripe charge for a customer payment card.",
+    "schema": {"amount": "number", "currency": "string", "customer": "string"},
+    "endpoint": "/v1/charges"},
+   ```
+2. Create `backend/app/tools/stripe_adapter.py` following `paypal_adapter.py`
+3. Register in `executor.py`:
+   ```python
+   elif tool_name.startswith("stripe_"):
+       from app.tools.stripe_adapter import execute_stripe_tool
+       result = await execute_stripe_tool(tool_name, last_user_msg)
+   ```
+4. Re-seed: `python scripts/seed_tools.py`
+
+No other changes needed — retrieval scales automatically.
+
+### Add a New Agent Domain
+
+1. Add domain to `DOMAIN_KEYWORDS` in `intent_classifier.py`
+2. Add a new tool adapter file
+3. Register in `executor.py`
+
+---
+
+## Troubleshooting
+
+| Issue | Fix |
+|-------|-----|
+| `pgvector extension not found` | Run `CREATE EXTENSION vector;` as postgres superuser |
+| `ModuleNotFoundError: sentence_transformers` | `pip install sentence-transformers` or set `EMBEDDING_PROVIDER=hash` |
+| Gemini returns empty response | Check `GEMINI_API_KEY` in `.env`; try `curl https://generativelanguage.googleapis.com/v1beta/models?key=YOUR_KEY` |
+| Tools not found after seeding | Check `EMBEDDING_PROVIDER` matches what seeder used; re-seed after changing |
+| `asyncpg` connection refused | Ensure PostgreSQL is running on port 5432; check `DATABASE_URL` in `.env` |
+
+---
+
+*ProcureIQ Agent — Built for Datazoic AI Engineer Interview*

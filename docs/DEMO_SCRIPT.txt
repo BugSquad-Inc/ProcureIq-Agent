@@ -1,0 +1,49 @@
+# ProcureIQ — 10-Minute Interview Demo Script
+
+## 0. Start Services
+1. Ensure PostgreSQL (`docint-postgres` on port 5432 with `procureiq` DB) is running.
+2. Run `start_dev.bat` (or start manually):
+   - Backend: `cd backend && python -m uvicorn app.main:app --host 0.0.0.0 --port 8000`
+   - Frontend: `cd frontend && npm run dev -- --port 5175`
+3. Open `http://localhost:5175` in browser (and `http://localhost:8000/docs` in a second tab).
+
+---
+
+## 1. Prove the Core Thesis (Minutes 1–3) — Tab: "Tool RAG Explorer"
+- Show **50 active PayPal & procurement tools** in the registry.
+- Enter `"Send an invoice for $50 to client@example.com"` and click **Retrieve Tools**.
+- Highlight:
+  - Only **5 tools** are bound to the LLM per turn (not 50 or 500).
+  - Explainable multi-signal scoring: `Dense Cosine + OR-BM25 + RRF + Reranker`.
+- Show the **50 -> 500 Scale Benchmark** (`scripts/benchmark_scale.py` / "Observability & Scale" tab):
+  - 50 tools:  Recall@5 = 100.0%, MRR@5 = 1.000, Avg = 9.24 ms
+  - 500 tools: Recall@5 = 100.0%, MRR@5 = 1.000, Avg = 29.36 ms, P95 = 34.19 ms
+
+---
+
+## 2. Live Agent + HITL Safety Gate (Minutes 4–6) — Tab: "Agent Chat & HITL"
+1. Click **"Send Payment (HITL Gate)"**: `"Send $500 to john@example.com"`
+   - Show extracted parameters: `{"amount": "$500", "recipient": "john@example.com"}`.
+   - Show LangGraph `interrupt()` paused the workflow before execution.
+   - Click **Approve & Execute** (or type `"Yes"`), and show transaction `TXN-88412`.
+2. Click **"Sales Analytics"**: `"What was my total sales volume last month?"`
+   - Executes read-only `get_sales_report` immediately without blocking.
+3. Click **"Dispute Lookup"**: `"Is there an open dispute from user_123?"`
+   - Returns open dispute `PP-D-12345` ($250.00).
+
+---
+
+## 3. RAG Pipeline Tool + System Search Tool (Minutes 7–8)
+1. Go to **"Knowledge Base & RAG"** -> click **"Load Sample Supplier SLA"**.
+2. Click **"Ask RAG"** for `"What does our supplier SLA say about delivery penalties?"` -> shows `"2% penalty per delayed business day"` with document citation.
+3. Back in **"Agent Chat"**:
+   - Click **"System Search (Tools)"**: `"What tools are available for managing invoices?"`
+   - Click **"System Search (History)"**: `"What was the status of my last request?"`
+
+---
+
+## 4. Production Resilience & Traceability (Minutes 9–10) — Tab: "Observability & Scale"
+- Click **Refresh** to show live **Session Execution Trace** (`GET /api/sessions/{id}/trace`):
+  - Per-turn `trace_id`, retrieval latency (ms), execution latency (ms), top-5 candidate scores, and audit status.
+- Point out **Circuit Breakers** (`CLOSED` / `OPEN` / `HALF_OPEN` per adapter) and LangSmith integration readiness.
+

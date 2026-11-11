@@ -1,0 +1,518 @@
+# 🚀 Datazoic Interview — End-to-End Master Plan
+*Scalable Agentic System with RAG · Supply Chain Use-Case · Sprint-wise Delivery*
+
+> [!IMPORTANT]
+> **Target Role**: AI Engineer @ Datazoic (FinTech · Chennai)  
+> **Task**: Design a Scalable Agentic System for 100+ tools + RAG Pipeline + System Search Tool  
+> **Strategy**: Use your existing `RAG-Entreprise` platform as the backbone, adapted for a **universal API Orchestration Agent** with a supply chain use-case that generalises cleanly to FinTech.
+
+---
+
+## 📋 Section Index
+
+1. [Task Deconstruction & What They're Really Testing](#1-task-deconstruction)
+2. [The Winning Architecture](#2-the-winning-architecture)
+3. [Reusing RAG-Entreprise — Component Mapping](#3-rag-entreprise-reuse-map)
+4. [The Use Case: "ProcureIQ" — Supply Chain Intelligence Agent](#4-procureiq-use-case)
+5. [Tech Stack with Justifications](#5-tech-stack)
+6. [Sprint-wise Implementation Plan](#6-sprint-plan)
+7. [Interview Talking Points](#7-interview-talking-points)
+8. [Architecture Diagram](#8-architecture-diagram)
+
+---
+
+## 1. Task Deconstruction
+
+### What Datazoic Is Actually Testing
+
+| Dimension | What They Want to See |
+|-----------|----------------------|
+| **System Design Thinking** | Can you architect for 100+ tools without naive context-stuffing? |
+| **RAG Expertise** | Retrieval, chunking, hybrid search, re-ranking — not just "call OpenAI" |
+| **Agentic Patterns** | Routing, state management, multi-turn, error recovery |
+| **Framework Literacy** | LangGraph vs CrewAI vs LlamaIndex — *why*, not just *what* |
+| **Observability** | LangSmith / Arize / Traceloop — production mindset |
+| **Domain Fit** | FinTech / Capital Markets (supply chain ↔ procurement ↔ finance crossover is perfect) |
+
+### Core Problem Statement (verbatim reframe)
+> *"As you attach more tools to an LLM, accuracy degrades. Design a system where this is NOT a hard constraint."*
+
+The answer: **Semantic Tool Routing + Hierarchical Agent Architecture** — treat tools like a knowledge base and retrieve them dynamically, same as you'd retrieve relevant document chunks.
+
+---
+
+## 2. The Winning Architecture
+
+### The Core Insight (Impress Them With This)
+
+> **Tools are to an Agentic System what Documents are to RAG.**  
+> You don't stuff all 100 documents into a prompt — you retrieve the top-k relevant ones.  
+> You should NOT stuff 100 tool schemas into a prompt either — you retrieve the top-k relevant tools.
+
+### High-Level Architecture: "Dynamic Tool RAG + Hierarchical Dispatch"
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                        USER CHAT INTERFACE                        │
+│                  (Multi-turn · Session Context)                   │
+└───────────────────────────────┬──────────────────────────────────┘
+                                │
+                                ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                    SUPERVISOR / INTENT ROUTER                     │
+│  • Fast LLM (GPT-4o-mini / Gemini Flash)                         │
+│  • Classifies intent → domain                                     │
+│  • Maintains conversation memory (LangGraph checkpointer)         │
+└──────┬──────────────────────────────────────┬────────────────────┘
+       │                                       │
+       ▼                                       ▼
+┌─────────────────┐                 ┌──────────────────────────┐
+│  TOOL RAG INDEX │                 │   DOMAIN EXPERT AGENTS   │
+│                 │                 │                          │
+│  All 100+ tool  │  ──top-k──►    │  Payments Agent (12 tools│
+│  descriptions   │  retrieval      │  Invoicing Agent (8 tools│
+│  embedded in    │                 │  Reports Agent  (10 tools│
+│  vector store   │                 │  RAG Tool               │
+│  (FAISS/pgvec)  │                 │  System Search Tool     │
+└─────────────────┘                 └──────────────────────────┘
+                                               │
+                                               ▼
+                                 ┌─────────────────────────┐
+                                 │   TOOL EXECUTOR NODE    │
+                                 │  • API calls (PayPal)   │
+                                 │  • RAG retrieval        │
+                                 │  • System search        │
+                                 │  • Error handling       │
+                                 │  • HITL gate (writes)   │
+                                 └─────────────────────────┘
+                                               │
+                                               ▼
+                                 ┌─────────────────────────┐
+                                 │  RESPONSE SYNTHESIZER   │
+                                 │  (Full LLM + context)   │
+                                 └─────────────────────────┘
+```
+
+### The 4 Key Design Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| **Orchestration** | LangGraph | Stateful graph, checkpointing, HITL, conditional routing — purpose-built for agentic workflows |
+| **Tool Routing** | Semantic Tool Retrieval | Embed tool descriptions, retrieve top-k per query — scales to ∞ tools |
+| **Memory** | LangGraph + PostgreSQL Checkpointer | Persistent multi-turn, resume after failure |
+| **Observability** | LangSmith | Native LangGraph tracing, replay failed runs, latency breakdown |
+
+---
+
+## 3. RAG-Entreprise Reuse Map
+
+Your existing `RAG-Entreprise` platform already implements the hardest parts. Here is a direct component mapping:
+
+### ✅ Directly Reusable (Zero Changes)
+
+| RAG-Entreprise Component | File | New Project Role |
+|--------------------------|------|-----------------|
+| `HybridSearchService` | `services/hybrid_search.py` | **RAG Tool** — hybrid query answering |
+| `StructureAwareChunker` | `services/chunking.py` | Document chunking for knowledge base |
+| `EmbeddingProvider` ABC | `infrastructure/embedding/` | Embed tool descriptions + documents |
+| `CrossEncoderReranker` | `services/reranking.py` | Rerank retrieved tool/doc candidates |
+| `GeminiSynthesizer` | `services/llm_synthesizer.py` | Response synthesis after tool execution |
+| `StorageService` ABC | `infrastructure/storage/` | Store uploaded documents |
+| PostgreSQL + pgvector | `alembic/` | Vector store for tools + documents |
+| `JobManager` | `infrastructure/queue/thread_pool.py` | Async tool execution |
+| Audit Events | `core/audit.py` | Log all agent actions |
+
+### 🔧 Adapt (Moderate Changes)
+
+| RAG-Entreprise Component | Adaptation Needed |
+|--------------------------|-------------------|
+| `CascadeMatchingEngine` (5-level) | Repurpose L3 (Hybrid Search) as the **Tool Retrieval** layer |
+| `FastAPI main.py` | Add `/chat`, `/sessions`, `/tools` endpoints |
+| `ExplainabilityEngine` | Explain *why* a tool was selected (great interview story!) |
+| `KnowledgeGraph` | Track tool call history as a graph (tool → outcome) |
+| Multi-tenancy (RLS) | Per-user session isolation instead of per-tenant doc isolation |
+
+### 🆕 New Components to Build
+
+| New Component | Description |
+|---------------|-------------|
+| `ToolRegistry` | CRUD for tool metadata + embeddings |
+| `SupervisorAgent` (LangGraph node) | Intent classification → domain routing |
+| `DomainExpertAgent` (LangGraph node) | Executes dynamically retrieved tools |
+| `SystemSearchTool` | Searches tool registry + session logs |
+| `SessionManager` | Multi-turn conversation state |
+| `PayPalAPIAdapter` | Wraps PayPal Postman collection |
+
+---
+
+## 4. ProcureIQ — The Use Case
+
+> [!NOTE]
+> **Why Supply Chain works perfectly for Datazoic (FinTech):** Procurement operations in investment banks and asset management firms involve purchase orders, vendor payments, invoice reconciliation, spend analytics, and dispute management — *identical* to what PayPal APIs handle. This is NOT a stretch.
+
+### ProcureIQ: Enterprise Procurement Intelligence Agent
+
+**Tagline**: *"Chat with your entire procurement ecosystem — from invoices to vendor disputes."*
+
+**Domain Mapping to Datazoic's World**:
+
+| ProcureIQ Tool Domain | Datazoic FinTech Equivalent |
+|----------------------|----------------------------|
+| Vendor Invoice Management | Client Billing & Invoice Ops |
+| Payment Processing (ERP) | Trade Settlement & Payments |
+| Spend Analytics | Portfolio Cost Analytics |
+| Supplier Dispute Resolution | Counterparty Dispute Management |
+| PO Approval Workflows | Investment Approval Workflows |
+| Compliance & Audit | Regulatory Reporting |
+| RAG Tool (SOP docs, contracts) | RAG Tool (product docs, prospectuses) |
+| System Search Tool | System Search Tool (identical) |
+
+### Sample User Interactions
+
+```
+User: "Create a purchase order for $45,000 to Acme Corp for server hardware"
+Agent: [Routing → Procurement Domain] → [PO Creation Tool] → confirms with HITL gate
+
+User: "What was our total spend on logistics last quarter?"
+Agent: [Routing → Analytics Domain] → [Spend Report Tool] → [RAG Tool for definitions]
+
+User: "Is there an open dispute with vendor_123?"
+Agent: [Routing → Dispute Domain] → [Dispute Query Tool] → Returns dispute summary
+
+User: "What tools can I use to manage supplier contracts?"
+Agent: [System Search Tool] → Returns relevant tools + capabilities
+
+User: "What does our supplier SLA say about delivery penalties?"
+Agent: [RAG Tool] → Hybrid search over uploaded SLA documents → Returns cited answer
+```
+
+---
+
+## 5. Tech Stack
+
+### Core Stack (Recommended for Interview)
+
+| Layer | Technology | Version | Why This, Not X |
+|-------|-----------|---------|-----------------|
+| **Orchestration** | LangGraph | 0.2.x | Stateful graph > LangChain chains. Beats CrewAI for single-agent workflows; beats AutoGen for deterministic control flow. Human-in-the-loop native. |
+| **LLM (Router)** | Gemini Flash / GPT-4o-mini | Latest | Fast, cheap for classification. Already integrated in RAG-Entreprise. |
+| **LLM (Executor)** | Gemini Pro / GPT-4o | Latest | Full reasoning for complex tool chains. |
+| **Tool Embedding Store** | pgvector (PostgreSQL) | 0.7.x | Already in your stack. Single DB, no extra infra. HNSW index for <10ms retrieval. |
+| **Knowledge Base** | Your RAG-Entreprise stack | — | Hybrid Search (pgvector HNSW + BM25 + RRF) is production-grade. |
+| **API Framework** | FastAPI + async | 0.115.x | Already in your stack. |
+| **Observability** | LangSmith | Cloud | Native LangGraph tracing. Free tier sufficient for demo. |
+| **State / Memory** | PostgreSQL Checkpointer | — | Persistent sessions. Upgrade from in-memory for production. |
+| **Frontend** | Your existing React UI | — | Add chat interface tab. |
+
+### Why LangGraph Over Alternatives
+
+| Framework | Strength | Why NOT for this task |
+|-----------|----------|----------------------|
+| **LangChain** (chains only) | Simple pipelines | No stateful routing, no HITL, no branching |
+| **CrewAI** | Multi-agent collaboration | Overkill for single-user chat agent; opinionated |
+| **AutoGen** | Code execution, research | Less suited for API orchestration |
+| **DSPy** | Prompt optimization | Research tool, not production orchestration |
+| **LlamaIndex** | RAG + data connectors | Great for RAG layer (can be used *inside*) but not for agent orchestration |
+| ✅ **LangGraph** | Stateful agentic graphs | Purpose-built for this exact problem |
+
+### Production Add-Ons (Mention for Bonus Points)
+
+| Tool | Purpose |
+|------|---------|
+| **LangSmith** | Tracing, debugging, replay failed runs |
+| **Arize Phoenix** | LLM evaluation, hallucination detection |
+| **Redis** | Tool response caching (reduce API costs) |
+| **Celery + Redis** | Scale tool execution async (already abstracted in your stack) |
+| **Docker + Docker Compose** | Already have `docker-compose.yml` |
+| **MLflow** | Log tool selection accuracy experiments |
+
+---
+
+## 6. Sprint-wise Implementation Plan
+
+> [!TIP]
+> Each sprint delivers a **working, demo-able increment**. Present this as your implementation roadmap.
+
+### Sprint 0 — Foundation (Days 1-2)
+**Goal**: Project scaffold + Tool Registry
+
+#### Deliverables
+- [ ] Fork `RAG-Entreprise` → new repo `ProcureIQ-Agent`
+- [ ] Add `ToolRegistry` table to PostgreSQL schema
+  ```sql
+  CREATE TABLE tools (
+      id UUID PRIMARY KEY,
+      name TEXT NOT NULL,
+      domain TEXT NOT NULL,          -- e.g. 'payments', 'invoicing'
+      description TEXT NOT NULL,     -- embedded for semantic search
+      schema JSONB NOT NULL,         -- JSON Schema for params
+      endpoint TEXT,                 -- API endpoint or function ref
+      embedding vector(768),         -- BGE-base from your stack
+      is_active BOOLEAN DEFAULT TRUE
+  );
+  ```
+- [ ] Seed 50 PayPal API tools into registry with descriptions
+- [ ] Tool embedding pipeline (reuse `EmbeddingProvider` ABC)
+- [ ] `GET /api/tools` — list tools, search by domain
+
+**Business Value**: Searchable, extensible tool registry — the foundation every sprint builds on.
+
+---
+
+### Sprint 1 — Semantic Tool Retrieval (Days 3-4)
+**Goal**: "Tool RAG" — dynamically retrieve relevant tools per query
+
+#### Deliverables
+- [ ] `ToolRetriever` service — wraps `HybridSearchService` targeting `tools` table
+  - Dense: pgvector cosine similarity on tool embeddings
+  - Sparse: BM25 on tool name + description
+  - RRF fusion → top-k tools returned per query
+- [ ] `POST /api/tools/retrieve` endpoint
+- [ ] Unit tests: "send invoice" → returns `create_invoice` tool (not 49 others)
+- [ ] LangSmith integration — trace every retrieval call
+
+**Business Value**: Proves the core thesis — tool selection accuracy does NOT degrade with 100+ tools.
+
+**Demo**: Show accuracy stays above 95% from 10 → 50 → 100 → 500 tools using retrieval.
+
+---
+
+### Sprint 2 — LangGraph Agent Core (Days 5-7)
+**Goal**: Working conversational agent with routing
+
+#### Deliverables
+- [ ] LangGraph `StateGraph` with:
+  ```
+  START → intent_classifier → tool_retriever → domain_executor → response_synthesizer → END
+       ↘ hitl_gate (for write operations) ↗
+  ```
+- [ ] `SupervisorNode`: Intent classification → domain label
+- [ ] `ToolRetrieverNode`: Query tool index → bind top-5 tools
+- [ ] `ExecutorNode`: Execute bound tools, handle errors
+- [ ] PostgreSQL checkpointer for session persistence
+- [ ] `POST /api/chat` endpoint (session_id, message → response)
+- [ ] Multi-turn memory: maintains context across turns
+
+**Business Value**: Core product — users can chat with 50+ PayPal APIs naturally.
+
+**Demo**: 
+```
+User: "Send $500 to john@example.com"
+Agent: (retrieves payment tool) → "I'll send $500 to john@example.com. Confirm? [Yes/No]"
+User: "Yes"
+Agent: (executes) → "Payment sent! Transaction ID: TXN_12345"
+```
+
+---
+
+### Sprint 3 — RAG Tool + System Search Tool (Days 8-9)
+**Goal**: The two special tools Datazoic explicitly asked for
+
+#### Deliverables
+- [ ] **RAG Tool** (wraps existing `HybridSearchService`):
+  - Accepts query → searches uploaded knowledge base (product docs, SOPs, contracts)
+  - Returns cited answer with source chunks
+  - Agent decides *when* to call this vs. direct API
+- [ ] **System Search Tool**:
+  - Searches `tools` table: "what tools handle invoices?"
+  - Searches `audit_events` table: "what was the status of my last request?"
+  - Returns structured capability + history report
+- [ ] Both registered as first-class tools in `ToolRegistry`
+- [ ] Document upload endpoint for knowledge base population
+
+**Business Value**: Agent can answer *both* operational questions AND knowledge questions without hallucinating.
+
+---
+
+### Sprint 4 — Scaling Demo + Observability (Days 10-11)
+**Goal**: Prove the architecture scales to 500+ tools, add production observability
+
+#### Deliverables
+- [ ] Scale test: Seed 500 synthetic tools → measure retrieval latency + accuracy
+- [ ] LangSmith dashboard: live traces, latency histogram, tool call breakdown
+- [ ] Error handling:
+  - API timeout → graceful fallback message
+  - Tool not found → System Search Tool suggests alternatives
+  - Parameter validation error → agent asks for clarification
+- [ ] Circuit breaker: exponential backoff on API failures
+- [ ] `GET /api/sessions/{id}/trace` — expose LangSmith trace link
+
+**Business Value**: Production-readiness proof. Investors and clients can see the agent thinking in real time.
+
+---
+
+### Sprint 5 — UI + Polish (Days 12-14)
+**Goal**: Demo-ready frontend, documentation, presentation
+
+#### Deliverables
+- [ ] Add chat tab to existing React UI
+  - Message history with tool call explanations (why this tool was chosen)
+  - Confidence score for tool selection
+  - Source citations for RAG answers
+- [ ] Tool catalog browser (search/filter)
+- [ ] Architecture diagram (interactive)
+- [ ] README with quick-start, architecture overview
+- [ ] 10-minute demo script
+
+**Business Value**: Stakeholder-ready demo, the full product story end-to-end.
+
+---
+
+### Sprint Delivery Summary
+
+```mermaid
+flowchart LR
+    S0["Sprint 0\nTool Registry\nDays 1-2"] --> S1["Sprint 1\nSemantic Tool Retrieval\nDays 3-4"]
+    S1 --> S2["Sprint 2\nLangGraph Agent\nDays 5-7"]
+    S2 --> S3["Sprint 3\nRAG + System Search\nDays 8-9"]
+    S3 --> S4["Sprint 4\nScale + Observability\nDays 10-11"]
+    S4 --> S5["Sprint 5\nUI + Polish\nDays 12-14"]
+```
+
+| Sprint | Days | Business Value |
+|--------|------|----------------|
+| S0 | 1-2 | Searchable tool registry — extensible foundation |
+| S1 | 3-4 | 95%+ tool selection accuracy at 100+ tools |
+| S2 | 5-7 | Working conversational agent (core product) |
+| S3 | 8-9 | RAG + System Search — both special tools delivered |
+| S4 | 10-11 | Proven scaling to 500+ tools with observability |
+| S5 | 12-14 | Demo-ready product with UI and documentation |
+
+---
+
+## 7. Interview Talking Points
+
+### Q: How does your design handle 100+ tools without degrading accuracy?
+> "We treat tools exactly like documents in RAG. Instead of stuffing all 100 tool schemas into the prompt, we embed tool descriptions into a vector store and retrieve only the top-5 most relevant tools per query using hybrid search — the same HNSW + BM25 + RRF pipeline from my RAG-Entreprise platform. This keeps the LLM context window focused and accuracy stays high regardless of how many total tools exist."
+
+### Q: Why LangGraph over LangChain / CrewAI / AutoGen?
+> "LangGraph is a stateful directed graph — it's the right primitive for agentic workflows. LangChain chains are stateless and can't handle branching well. CrewAI is great for multi-agent collaboration but is opinionated and overkill for a single-user chat system. AutoGen is powerful for research and code-generation agents but doesn't give you the fine-grained control over routing and HITL that financial operations demand. LangGraph gives me: persistent state via checkpointers, conditional edges for routing, native human-in-the-loop interrupts for high-stakes API calls, and first-class LangSmith observability."
+
+### Q: How do you handle tool call failures?
+> "Three layers: (1) Parameter validation before execution — if the LLM hallucinated a parameter, we catch it and ask the user to clarify before hitting the API. (2) Circuit breaker — exponential backoff on 429/500 errors, with a fallback_node that tells the user the service is temporarily unavailable. (3) State recovery — LangGraph's PostgreSQL checkpointer means if a tool hangs, we don't lose the conversation. We can resume from the last checkpoint or roll back."
+
+### Q: How do you handle multi-turn conversations?
+> "LangGraph's checkpointer persists the full graph state keyed by session_id. Each turn appends to the message history in state, so the router sees full conversation context. The system search tool can also query the audit log to answer 'what was the status of my last request?' — conversational context AND historical context."
+
+### Q: What observability tools would you use?
+> "LangSmith is the first choice — it's native to LangGraph and gives you full trace trees showing every node execution, tool call, token count, and latency. For LLM evaluation at scale, I'd add Arize Phoenix to detect hallucination, monitor retrieval quality, and run regression tests after any model upgrade. MLflow tracks the tool selection accuracy experiments as we scale from 50 to 500 tools."
+
+### Q: How does this relate to FinTech / Capital Markets?
+> "The PayPal API scenario maps directly to investment bank operations: payment tools → trade settlement, invoice tools → fee billing and invoicing, dispute tools → counterparty dispute management, analytics tools → portfolio cost reporting. Datazoic's Prism product combines CRM, BI, and AI — this agent architecture naturally extends to: a Prism user asking 'show me Q3 revenue for Morgan Stanley accounts' (analytics tool), 'draft a renewal proposal for client X' (RAG tool over pitch templates), or 'what's the status of that wire transfer?' (system search tool over audit logs)."
+
+---
+
+## 8. Architecture Diagram
+
+```mermaid
+flowchart TD
+    U["👤 User\nChat Interface"] -->|"Message + Session ID"| API["FastAPI\n/api/chat"]
+    
+    API --> SG["LangGraph StateGraph\ncheckpointed to PostgreSQL"]
+    
+    SG --> IC["Intent Classifier Node\nGemini Flash\nFast · Cheap"]
+    
+    IC -->|"domain label"| TR["Tool Retriever Node\nHybrid Search on Tool Registry\nHNSW + BM25 + RRF\ntop-5 tools returned"]
+    
+    TR --> |"write operation?"| HITL["HITL Gate\ninterrupt() → user confirm"]
+    TR --> |"read operation"| EX["Executor Node\nBinds top-5 tools only\nExecutes selected tool"]
+    
+    HITL -->|"confirmed"| EX
+    
+    EX -->|"query"| RAG["RAG Tool\nHybridSearchService\npgvector + BM25"]
+    EX -->|"system query"| SS["System Search Tool\nTool Registry + Audit Logs"]
+    EX -->|"API call"| TOOLS["External APIs\nPayPal · ERP · CRM\n100+ tools in registry"]
+    
+    RAG --> RS["Response Synthesizer\nGemini Pro\nFull context + citations"]
+    SS --> RS
+    TOOLS --> RS
+    EX -->|"error"| CB["Circuit Breaker\nRetry → Fallback msg"]
+    
+    RS --> U
+    
+    SG -.->|"traces"| LS["LangSmith\nObservability"]
+    SG -.->|"state"| PG["PostgreSQL\npgvector + BM25 + Checkpointer"]
+    
+    TR -.->|"tool embeddings"| PG
+    RAG -.->|"doc embeddings"| PG
+    
+    style U fill:#4CAF50,color:#fff
+    style LS fill:#FF9800,color:#fff
+    style PG fill:#2196F3,color:#fff
+    style HITL fill:#F44336,color:#fff
+    style RAG fill:#9C27B0,color:#fff
+    style SS fill:#9C27B0,color:#fff
+```
+
+---
+
+## 9. What to Build vs. What to Present
+
+> [!CAUTION]
+> Do NOT try to build everything in the sprint plan before the interview — that's not the expectation. The task says "design" and "propose architecture". Here's what matters:
+
+### Must Build (Working Demo)
+- [ ] Tool Registry with 20-30 seeded tools (PayPal + generic)
+- [ ] Semantic Tool Retrieval (the core thesis)
+- [ ] Basic LangGraph agent (2-3 nodes minimum)
+- [ ] RAG Tool (literally your existing `HybridSearchService` wrapped)
+- [ ] System Search Tool (search tool registry)
+- [ ] Simple chat UI or curl demo
+
+### Must Present (Design Artifact)
+- [ ] Architecture diagram (this document)
+- [ ] Framework comparison table with trade-off reasoning
+- [ ] Scaling argument: "Here's how retrieval accuracy stays constant at 500 tools"
+- [ ] Observability: LangSmith trace screenshot
+
+### Nice to Have
+- [ ] LangSmith traces from actual runs
+- [ ] Scale test graph (accuracy vs. # tools)
+- [ ] Docker Compose for one-command setup
+
+---
+
+## 10. Repo Structure (New Project)
+
+```
+procureiq-agent/
+├── backend/
+│   ├── app/
+│   │   ├── agents/
+│   │   │   ├── graph.py              # LangGraph StateGraph definition
+│   │   │   ├── nodes/
+│   │   │   │   ├── intent_classifier.py
+│   │   │   │   ├── tool_retriever.py
+│   │   │   │   ├── executor.py
+│   │   │   │   └── synthesizer.py
+│   │   │   └── state.py              # AgentState TypedDict
+│   │   ├── tools/
+│   │   │   ├── registry.py           # ToolRegistry CRUD
+│   │   │   ├── rag_tool.py           # Wraps HybridSearchService
+│   │   │   ├── system_search.py      # Tool + audit log search
+│   │   │   └── paypal_adapter.py     # PayPal API wrappers
+│   │   ├── services/                 # ← COPIED from RAG-Entreprise
+│   │   │   ├── hybrid_search.py      ✅ REUSE DIRECTLY
+│   │   │   ├── chunking.py           ✅ REUSE DIRECTLY
+│   │   │   ├── reranking.py          ✅ REUSE DIRECTLY
+│   │   │   └── llm_synthesizer.py    ✅ REUSE DIRECTLY
+│   │   ├── infrastructure/           # ← COPIED from RAG-Entreprise
+│   │   │   ├── embedding/            ✅ REUSE DIRECTLY
+│   │   │   ├── storage/              ✅ REUSE DIRECTLY
+│   │   │   └── database/             🔧 ADD tools table
+│   │   └── api/
+│   │       ├── chat.py               # POST /chat, GET /sessions
+│   │       └── tools.py              # GET /tools, POST /tools/retrieve
+├── frontend/                         # ← EXTEND existing React UI
+│   └── src/
+│       └── components/
+│           └── ChatInterface/        # 🆕 New chat tab
+├── scripts/
+│   └── seed_tools.py                 # Seed 50 PayPal tools into registry
+├── docker-compose.yml                ← REUSE existing
+└── README.md
+```
+
+---
+
+*Generated: 2026-11-10 | For Datazoic AI Engineer Interview*
