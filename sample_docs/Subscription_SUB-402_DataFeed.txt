@@ -1,0 +1,9 @@
+RECURRING SUBSCRIPTION CONTRACT: SUB-402
+========================================
+Subscription ID: SUB-402
+Plan ID: PLAN-MARKET-TICK-PRO
+Provider: QuantLedger Financial Feeds (david.kim@quantledger.ai)
+Billing Cycle: Monthly ($1,250.00 / month)
+Status: ACTIVE
+Next Renewal Date: 2026-12-01
+Notes: Query via get_subscription or cancel before 2026-11-28 via cancel_subscription if feed migrates.

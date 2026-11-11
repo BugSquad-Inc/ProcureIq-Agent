@@ -1,0 +1,11 @@
+REAL-TIME FRAUD & RISK TELEMETRY: TXN-88412
+==========================================
+Transaction ID: TXN-88412
+Requested Payout Recipient: unknown-relay@offshore-shell.example
+Amount: $14,900.00
+Composite Risk Score: 0.84 / 1.00 (HIGH RISK)
+Signals Triggered:
+  - Newly registered domain (< 7 days old)
+  - First-time payout anomaly exceeding 3x vendor baseline
+  - ASN geo-mismatch vs W-9 domicile
+Recommendation: BLOCK transaction via get_risk_assessment review and trigger KYC re-verification.

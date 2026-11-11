@@ -1,0 +1,9 @@
+COUNTERPARTY KYC / BENEFICIAL OWNERSHIP CHECK: USR-409
+====================================================
+User / Entity ID: USR-409 (Pacific Semiconductors Authorized Signatory: Sophia Chen)
+Verification Tier: CIP + Enhanced Due Diligence (EDD)
+Status: VERIFIED_PASS
+Sanctions Screening (OFAC / EU / UK HMT): CLEAR (0 Matches)
+UBO Ownership Check: Verified >25% Ultimate Beneficial Owners documented
+Next Review Date: 2027-11-01
+Tool Reference: get_identity_verification

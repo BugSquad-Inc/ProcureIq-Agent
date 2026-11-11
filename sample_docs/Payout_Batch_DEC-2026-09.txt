@@ -1,0 +1,14 @@
+SUPPLIER PAYOUT BATCH MANIFEST: PAYOUT-DEC-09
+=============================================
+Payout Batch ID: PAYOUT-DEC-09
+Scheduled Execution: 2026-12-09 14:00 UTC
+Funding Currency: USD
+Status: STAGED (Requires HITL Confirmation via create_payout_batch)
+
+Beneficiaries:
+  1. mike@acmecorp.com (INVOICE_001 ref) ............... $2,450.00
+  2. sarah@vendorlabs.io (INVOICE_002 ref) ............. $1,890.00
+  3. emma@cloudscale.io (Cloud burst partial) .......... $3,850.00
+  4. sophia@pacificsemis.com (Memory kit deposit) ...... $11,230.00
+
+Total Batch Amount: $19,420.00

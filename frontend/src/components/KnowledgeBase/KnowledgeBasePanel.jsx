@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Upload, FileText, Search } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Upload, FileText, Search, Trash2, RefreshCw, Database } from "lucide-react";
 import { api } from "../../api";
 
 const SAMPLE_SLA = `Enterprise Supplier SLA & Procurement Policy (v2.1)
@@ -21,6 +21,24 @@ export default function KnowledgeBasePanel({ sessionId, onUploaded }) {
   const [ragQuery, setRagQuery] = useState("What does our supplier SLA say about delivery penalties?");
   const [ragResponse, setRagResponse] = useState(null);
   const [querying, setQuerying] = useState(false);
+  const [documents, setDocuments] = useState([]);
+  const [loadingDocs, setLoadingDocs] = useState(false);
+
+  const loadDocuments = async () => {
+    setLoadingDocs(true);
+    try {
+      const res = await api.getKBDocuments();
+      setDocuments(res.documents || []);
+    } catch {
+      setDocuments([]);
+    } finally {
+      setLoadingDocs(false);
+    }
+  };
+
+  useEffect(() => {
+    loadDocuments();
+  }, []);
 
   const handleFileUpload = async (file) => {
     if (!file) return;
@@ -29,11 +47,23 @@ export default function KnowledgeBasePanel({ sessionId, onUploaded }) {
     try {
       const res = await api.uploadKBFile(file);
       setUploadStatus(`Ingested "${res.filename}" (${res.chunks_created} chunks indexed into pgvector).`);
+      await loadDocuments();
       onUploaded?.();
     } catch (err) {
       setUploadStatus(`Upload failed: ${err.message}`);
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleDeleteDoc = async (docName) => {
+    try {
+      await api.deleteKBDocument(docName);
+      setUploadStatus(`Removed "${docName}" from Knowledge Base.`);
+      await loadDocuments();
+      onUploaded?.();
+    } catch (err) {
+      setUploadStatus(`Delete failed: ${err.message}`);
     }
   };
 
@@ -58,7 +88,8 @@ export default function KnowledgeBasePanel({ sessionId, onUploaded }) {
   };
 
   return (
-    <div className="grid-2">
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div className="grid-2">
       <div className="card">
         <h3 className="card-title">
           <Upload size={17} color="#38bdf8" /> Upload Knowledge Base Document
@@ -118,12 +149,60 @@ export default function KnowledgeBasePanel({ sessionId, onUploaded }) {
                 <div className="muted" style={{ fontWeight: 600 }}>Citations:</div>
                 {ragResponse.sources.map((s, idx) => (
                   <div key={idx} className="muted" style={{ marginTop: 4, fontSize: "0.78rem" }}>
-                    <strong>{s.document}</strong> · rrf: {s.rrf_score} — {s.excerpt}
+                    <strong>{s.document}</strong> · rrf: {s.rrf_score}
+                    {s.llm_score != null ? ` · gemini: ${s.llm_score}/10` : ""} — {s.excerpt}
                   </div>
                 ))}
               </div>
             )}
           </div>
+        )}
+      </div>
+    </div>
+
+      <div className="card">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <h3 className="card-title" style={{ margin: 0 }}>
+            <Database size={17} color="var(--accent)" /> Indexed Knowledge Base Documents ({documents.length})
+          </h3>
+          <button type="button" className="btn" onClick={loadDocuments} disabled={loadingDocs}>
+            <RefreshCw size={14} /> Refresh
+          </button>
+        </div>
+        {documents.length === 0 ? (
+          <div className="muted" style={{ fontSize: "0.86rem" }}>
+            No documents indexed yet. Upload TXT, PDF, DOCX, or MD files above.
+          </div>
+        ) : (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Document Name</th>
+                <th>Indexed Chunks</th>
+                <th>Last Indexed</th>
+                <th style={{ width: 90 }}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {documents.map((doc) => (
+                <tr key={doc.document_name}>
+                  <td className="mono">{doc.document_name}</td>
+                  <td className="mono">{doc.chunks}</td>
+                  <td className="muted">{doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleString() : "-"}</td>
+                  <td>
+                    <button
+                      type="button"
+                      className="btn"
+                      style={{ padding: "4px 8px", fontSize: "0.78rem" }}
+                      onClick={() => handleDeleteDoc(doc.document_name)}
+                    >
+                      <Trash2 size={13} /> Remove
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
     </div>

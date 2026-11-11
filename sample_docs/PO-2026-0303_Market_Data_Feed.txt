@@ -1,0 +1,15 @@
+PURCHASE ORDER: PO-2026-0303
+============================
+PO Number: PO-2026-0303
+Vendor: QuantLedger Financial Feeds (Vendor ID: VND-104)
+Vendor Email: david.kim@quantledger.ai
+Department: Quantitative Research & Capital Markets
+Status: APPROVED (Operator Authority < $25,000)
+
+Line Items:
+  1. Annual OPRA & Consolidated Tape Market Feed ......... $7,800.00
+  2. Co-Location Telemetry Adapter License ................ $2,000.00
+
+Total Amount: $9,800.00
+Payment Terms: Net 30
+Delivery Schedule: 2026-11-15

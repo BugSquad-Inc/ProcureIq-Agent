@@ -1,0 +1,9 @@
+VENDOR MASTER PROFILE: VND-103
+==============================
+Vendor ID: VND-103
+Legal Name: Aegis Cyber Assurance LLC
+Primary Contact: Marcus Vance <marcus@aegiscyber.io>
+Category: Security Audits & FinTech Compliance
+Tax Status: W-9 Verified
+Compliance Standing: APPROVED TIER-2 (High-Value Finance VP Sign-Off Required > $25k)
+Standard Terms: Net 30

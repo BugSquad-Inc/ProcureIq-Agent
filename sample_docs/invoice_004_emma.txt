@@ -1,0 +1,23 @@
+INVOICE RECORD: INVOICE_004 (INV-2026-004)
+==========================================
+Invoice ID: INVOICE_004
+Reference PO: PO-2026-0302
+Status: OVERDUE (Past Due by 9 Days)
+Issue Date: 2026-10-12
+Due Date: 2026-11-02
+
+Bill To:
+  Recipient: Emma Watson <emma@cloudscale.io>
+  Company: CloudScale Infrastructure Inc.
+  Billing Contact: emma@cloudscale.io
+
+Line Items:
+  1. Reserved H100 Cluster Burst Capacity (480 hrs) ....... $3,200.00
+  2. High-Throughput Egress Storage Add-on ................ $650.00
+
+Subtotal: $3,850.00
+Tax: $0.00 (Reseller Exemption #CA-9981)
+Total Amount Due: $3,850.00
+Payment Terms: Net 21
+
+Notes: Send polite payment reminder via remind_invoice to emma@cloudscale.io referencing PO-2026-0302.

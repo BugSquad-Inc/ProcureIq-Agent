@@ -1,0 +1,13 @@
+PURCHASE ORDER: PO-2026-0306
+============================
+PO Number: PO-2026-0306
+Vendor: Pacific Semiconductors (Vendor ID: VND-107)
+Vendor Email: sophia@pacificsemis.com
+Department: ML Platform Engineering
+Status: APPROVED
+
+Line Items:
+  1. DDR5-5600 ECC RDIMM Kits (64GB x 24) ................. $14,750.00
+
+Total Amount: $14,750.00
+Payment Terms: Net 45

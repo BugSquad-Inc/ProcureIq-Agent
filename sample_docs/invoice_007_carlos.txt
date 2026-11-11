@@ -1,0 +1,21 @@
+INVOICE RECORD: INVOICE_007 (INV-2026-007)
+==========================================
+Invoice ID: INVOICE_007
+Reference PO: PO-2026-0188
+Status: DISCREPANCY HOLD — Amount Variance Exceeds 2% Threshold
+Issue Date: 2026-11-04
+Due Date: 2026-12-04
+
+Bill To:
+  Recipient: Carlos Mendez <carlos@meridianlogistics.com>
+  Company: Meridian Global Freight
+  Billing Contact: carlos@meridianlogistics.com
+
+Billed Line Items:
+  1. Cold-Chain Server Rack Transport ..................... $1,550.00
+  2. Unapproved Peak-Season Fuel Surcharge ................ $400.00
+
+Total Amount Billed: $1,950.00
+Approved PO Freight Ceiling: $1,550.00
+Variance Detected: +$400.00 (25.8% over contracted rate)
+Notes: Flag INVOICE_007 using flag_invoice_discrepancy citing unapproved fuel surcharge of $400.00.

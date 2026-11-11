@@ -4,16 +4,21 @@ main.py — ProcureIQ Agent FastAPI application entrypoint.
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy import func, select, text
 import structlog
 
+from app.api.auth_api import router as auth_router
 from app.api.chat import router as chat_router
 from app.api.observability import router as observability_router
 from app.api.tools_api import router as tools_router
 from app.config import get_settings
 from app.core.embedding.factory import EmbeddingProviderFactory
+from app.core.security import RateLimitMiddleware
 
 logger = structlog.get_logger("procureiq.main")
 settings = get_settings()
@@ -47,6 +52,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(RateLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -55,9 +61,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth_router)
 app.include_router(chat_router)
 app.include_router(tools_router)
 app.include_router(observability_router)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Return human-readable validation summary alongside field-level errors."""
+    msgs = []
+    for err in exc.errors():
+        loc = ".".join(str(x) for x in err.get("loc", []) if x != "body")
+        msgs.append(f"{loc}: {err.get('msg')}" if loc else str(err.get("msg")))
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": "; ".join(msgs) or "Invalid request payload.",
+            "errors": jsonable_encoder(exc.errors()),
+        },
+    )
 
 
 @app.get("/health")
@@ -82,11 +105,15 @@ async def health():
     return {
         "status": "ok" if db_status == "connected" else "degraded",
         "version": settings.app_version,
+        "environment": settings.environment,
         "database": db_status,
         "active_tools": active_tools,
         "embedding_provider": settings.embedding_provider,
         "embedding_model": provider.model_name,
         "target_dimension": settings.embedding_dimension,
+        "checkpointer": "postgres" if settings.use_durable_checkpointer else "memory",
+        "auth_required": settings.effective_auth_enabled,
+        "rate_limit_rpm": settings.rate_limit_rpm,
     }
 
 

@@ -1,0 +1,8 @@
+VENDOR MASTER PROFILE: VND-104
+==============================
+Vendor ID: VND-104
+Legal Name: QuantLedger Financial Feeds Corp
+Primary Contact: David Kim <david.kim@quantledger.ai>
+Category: Market Data & Tick Feeds
+Compliance Standing: APPROVED TIER-1 (FINRA Vendor Checklist Complete)
+Standard Terms: Net 30

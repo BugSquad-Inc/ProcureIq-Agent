@@ -1,0 +1,7 @@
+PROCUREIQ & FINTECH CATALOG SKUS (2026)
+=======================================
+SKU-PROC-101 : Enterprise Procurement Copilot Seat ($499.00/mo)
+SKU-GPU-204  : Dedicated H100 Inference Reservation ($3,200.00/block)
+SKU-DATA-309 : Institutional Market Tick Connector ($1,250.00/mo)
+SKU-SEC-412  : Automated SOC2 / FINRA Audit Archiver ($1,700.00/yr)
+Use `list_products` or `create_product` to maintain PayPal Checkout catalog SKUs.

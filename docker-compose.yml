@@ -1,42 +1,73 @@
 services:
-  # ── PostgreSQL with pgvector ──────────────────────────────────────────────
   db:
     image: pgvector/pgvector:pg16
-    container_name: procureiq_db
+    container_name: procureiq-postgres
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: procureiq
-      POSTGRES_PASSWORD: procureiq_dev
-      POSTGRES_DB: procureiq
+      POSTGRES_USER: ${POSTGRES_USER:-procureiq}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-procureiq_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-procureiq}
     ports:
       - "${POSTGRES_HOST_PORT:-5433}:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/app/infrastructure/database/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U procureiq"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-procureiq} -d ${POSTGRES_DB:-procureiq}"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
 
-  # ── FastAPI Backend ───────────────────────────────────────────────────────
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: procureiq_backend
-    ports:
-      - "8000:8000"
-    env_file:
-      - .env
-    environment:
-      DATABASE_URL: postgresql+asyncpg://procureiq:procureiq_dev@db:5432/procureiq
-      SYNC_DATABASE_URL: postgresql://procureiq:procureiq_dev@db:5432/procureiq
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: procureiq-backend
+    restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
-    volumes:
-      - ./backend:/app
-      - ${USERPROFILE:-~}/.cache/huggingface:/root/.cache/huggingface
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-procureiq}:${POSTGRES_PASSWORD:-procureiq_dev}@db:5432/${POSTGRES_DB:-procureiq}
+      SYNC_DATABASE_URL: postgresql://${POSTGRES_USER:-procureiq}:${POSTGRES_PASSWORD:-procureiq_dev}@db:5432/${POSTGRES_DB:-procureiq}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      AUTH_ENABLED: ${AUTH_ENABLED:-true}
+      AUTH_SECRET_KEY: ${AUTH_SECRET_KEY:-procureiq-prod-secret-change-me}
+      API_KEYS_CSV: ${API_KEYS_CSV:-}
+      RATE_LIMIT_RPM: ${RATE_LIMIT_RPM:-120}
+      CORS_ORIGINS: ${CORS_ORIGINS:-["http://localhost:8088","http://localhost:5175","http://localhost"]}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-qwen}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-Qwen/Qwen3-Embedding-4B}
+      EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-2560}
+      QWEN_BASE_URL: ${QWEN_BASE_URL:-http://host.docker.internal:11434}
+      QWEN_USE_HTTP_FIRST: ${QWEN_USE_HTTP_FIRST:-true}
+      ENABLE_LOCAL_MODELS: ${ENABLE_LOCAL_MODELS:-false}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-flash-lite-latest}
+      GEMINI_VERIFY_SSL: "true"
+      USE_DURABLE_CHECKPOINTER: "true"
+      UVICORN_WORKERS: ${UVICORN_WORKERS:-1}
+      LANGCHAIN_TRACING_V2: ${LANGCHAIN_TRACING_V2:-false}
+      LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY:-}
+      LANGCHAIN_PROJECT: ${LANGCHAIN_PROJECT:-procureiq-agent}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  frontend:
+    build: ./frontend
+    container_name: procureiq-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_PORT:-8088}:80"
 
 volumes:
-  pgdata:
+  postgres_data:

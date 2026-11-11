@@ -1,0 +1,14 @@
+WAREHOUSE GOODS RECEIPT RECORD: GR-2026-7741
+============================================
+Goods Receipt ID: GR-2026-7741
+Purchase Order Ref: PO-2026-0188
+Vendor: Acme Corp Enterprise IT (VND-101)
+Inspected By: Marcus Chen (Data Center Operations)
+Inspection Date: 2026-11-08
+Inspection Result: PASSED (100% Serial Match)
+
+Received Items:
+  - GPU Inference Node Chassis (Serials ACN-901 to ACN-902): Qty 2 Ordered, Qty 2 Received
+  - redundant PSU Kits: Qty 4 Ordered, Qty 4 Received
+
+Recommended Tool Action: Record completion via submit_goods_receipt for PO-2026-0188.

@@ -1,0 +1,17 @@
+COUNTERPARTY DISPUTE EVIDENCE DOSSIER: PP-D-12345
+===================================================
+Dispute ID: PP-D-12345
+Customer Account: user_123 (Alex Rivera <alex.rivera@clientco.com>)
+Transaction Reference: TXN-9982410
+Disputed Amount: $1,280.00
+Status: OPEN — Under Merchant Review
+Opened Date: 2026-11-05
+Resolution SLA Deadline: 2026-11-12
+
+Summary of Claim:
+Customer user_123 reported a duplicate charge of $1,280.00 on hardware freight shipment for PO-2026-0188.
+Tracking evidence confirms Carrier Manifest #GF-88210 was delivered in a single parcel batch; a retry webhook triggered duplicate settlement TXN-9982410.
+
+Recommended Action:
+Verify transaction duplicate status or issue partial/full refund via accept_dispute_claim with evidence bundle GF-88210.
+

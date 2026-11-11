@@ -1,0 +1,10 @@
+VENDOR MASTER PROFILE: VND-101
+==============================
+Vendor ID: VND-101
+Legal Name: Acme Corp Enterprise IT
+Primary Contact: Mike Thompson <mike@acmecorp.com>
+Category: AI Compute & Rack Hardware
+Tax Status: W-9 Verified (EIN ending 4421)
+Compliance Standing: PREFERRED TIER-1 (SOC2 + ISO-27001 Valid until 2027-06)
+Standard Terms: Net 30 | ACH / PayPal Enterprise Payouts Enabled
+YTD Spend: $84,250.00 across 4 POs

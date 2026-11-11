@@ -1,0 +1,8 @@
+VENDOR MASTER PROFILE: VND-105
+==============================
+Vendor ID: VND-105
+Legal Name: Meridian Global Freight Ltd.
+Primary Contact: Carlos Mendez <carlos@meridianlogistics.com>
+Category: Insured IT Freight & White-Glove Delivery
+Compliance Standing: WATCHLIST — Recent Surcharge Discrepancy on INVOICE_007
+Standard Terms: Net 15

@@ -10,14 +10,15 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import asc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.core.embedding.factory import EmbeddingProviderFactory
 from app.core.resilience import CircuitBreakerRegistry
-from app.infrastructure.database.models import AuditLog, KBChunk, Tool
+from app.core.security import AuthContext, assert_roles, get_auth_context
+from app.infrastructure.database.models import AuditLog, KBChunk, Session as DBSession, Tool
 from app.infrastructure.database.session import get_db
 from app.tools.registry import count_tools_by_domain
 
@@ -25,15 +26,29 @@ router = APIRouter(prefix="/api", tags=["observability"])
 
 
 @router.get("/sessions/{session_id}/trace")
-async def get_session_trace(session_id: str, db: AsyncSession = Depends(get_db)):
+async def get_session_trace(
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+    auth: AuthContext = Depends(get_auth_context),
+):
     """
-    Return the structured execution trace for a session, including retrieved
+    Return the structured tenant-scoped execution trace for a session, including retrieved
     tool candidates, retrieval/execution latencies, HITL decisions, and LangSmith status.
     """
+    session_row = await db.get(DBSession, session_id)
+    if session_row is not None and session_row.tenant_id != auth.tenant_id:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Tenant access denied for session '{session_id}'.",
+        )
+
     settings = get_settings()
     stmt = (
         select(AuditLog)
-        .where(AuditLog.session_id == session_id)
+        .where(
+            AuditLog.session_id == session_id,
+            AuditLog.tenant_id == auth.tenant_id,
+        )
         .order_by(asc(AuditLog.created_at))
     )
     rows = (await db.execute(stmt)).scalars().all()
@@ -51,6 +66,7 @@ async def get_session_trace(session_id: str, db: AsyncSession = Depends(get_db))
                 "user_message": payload.get("user_message"),
                 "extracted_params": payload.get("params", {}),
                 "candidates_considered": payload.get("candidates", []),
+                "execution_steps": payload.get("execution_steps", []),
                 "retrieval_latency_ms": payload.get("retrieval_latency_ms"),
                 "execution_ms": payload.get("execution_ms"),
                 "circuit_open": payload.get("circuit_open", False),
@@ -73,17 +89,35 @@ async def get_session_trace(session_id: str, db: AsyncSession = Depends(get_db))
 
 
 @router.get("/system/observability")
-async def get_system_observability(db: AsyncSession = Depends(get_db)):
-    """Global system health, Tool RAG registry stats, audit counts, and circuit breakers."""
+async def get_system_observability(
+    db: AsyncSession = Depends(get_db),
+    auth: AuthContext = Depends(get_auth_context),
+):
+    """Global system health, Tool RAG registry stats, tenant audit counts, and circuit breakers."""
     settings = get_settings()
     provider = EmbeddingProviderFactory.get_provider()
 
     domain_counts = await count_tools_by_domain(db, active_only=True)
-    kb_count_res = await db.execute(select(func.count(KBChunk.id)))
+    tool_vec_res = await db.execute(
+        select(func.count(Tool.id)).where(Tool.is_active == True, Tool.embedding.is_not(None))  # noqa: E712
+    )
+    tool_vectors = int(tool_vec_res.scalar() or 0)
+    kb_count_res = await db.execute(
+        select(func.count(KBChunk.id)).where(KBChunk.tenant_id == auth.tenant_id)
+    )
     kb_chunks = int(kb_count_res.scalar() or 0)
+    kb_vec_res = await db.execute(
+        select(func.count(KBChunk.id)).where(
+            KBChunk.tenant_id == auth.tenant_id,
+            KBChunk.embedding.is_not(None),
+        )
+    )
+    kb_vectors = int(kb_vec_res.scalar() or 0)
 
     audit_res = await db.execute(
-        select(AuditLog.action, func.count(AuditLog.id)).group_by(AuditLog.action)
+        select(AuditLog.action, func.count(AuditLog.id))
+        .where(AuditLog.tenant_id == auth.tenant_id)
+        .group_by(AuditLog.action)
     )
     audit_counts = {row[0]: int(row[1]) for row in audit_res.fetchall()}
 
@@ -94,24 +128,43 @@ async def get_system_observability(db: AsyncSession = Depends(get_db)):
         },
         "knowledge_base": {
             "total_chunks": kb_chunks,
+            "tenant_id": auth.tenant_id,
         },
         "audit_summary": audit_counts,
         "embedding": {
             "configured_provider": settings.embedding_provider,
             "active_model": provider.model_name,
             "target_dimension": settings.embedding_dimension,
+            "vectors_stored": {
+                "tools": tool_vectors,
+                "kb_chunks": kb_vectors,
+            },
+        },
+        "gemini_llm": {
+            "configured": bool(settings.gemini_api_key),
+            "model": settings.gemini_model,
+            "embedding_model": settings.gemini_embedding_model,
         },
         "langsmith": {
             "enabled": bool(settings.langchain_tracing_v2 and settings.langchain_api_key),
             "project": settings.langchain_project,
+        },
+        "security": {
+            "tenant_id": auth.tenant_id,
+            "role": auth.role,
+            "auth_required": settings.effective_auth_enabled,
+            "checkpointer": "postgres" if settings.use_durable_checkpointer else "memory",
+            "rate_limit_rpm": settings.rate_limit_rpm,
+            "po_vp_threshold": settings.po_vp_approval_threshold,
         },
         "circuit_breakers": CircuitBreakerRegistry.all_statuses(),
     }
 
 
 @router.post("/system/circuit-breakers/reset")
-async def reset_circuit_breakers():
-    """Reset all service circuit breakers back to CLOSED."""
+async def reset_circuit_breakers(auth: AuthContext = Depends(get_auth_context)):
+    """Reset all service circuit breakers back to CLOSED (requires finance_vp or admin)."""
+    assert_roles(auth, ("finance_vp", "admin"), "circuit_breaker_reset")
     CircuitBreakerRegistry.reset_all()
     return {
         "status": "reset",

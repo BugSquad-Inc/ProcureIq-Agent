@@ -28,6 +28,37 @@ _TS_STOPWORDS = {
 }
 
 
+_TYPO_CORRECTIONS = {
+    "invoive": "invoice",
+    "invoce": "invoice",
+    "invocie": "invoice",
+    "invoies": "invoices",
+    "invoives": "invoices",
+    "paymet": "payment",
+    "payemnt": "payment",
+    "paymnt": "payment",
+    "purchse": "purchase",
+    "purcahse": "purchase",
+    "dispue": "dispute",
+    "disupte": "dispute",
+    "suplier": "supplier",
+    "documnet": "document",
+    "reciept": "receipt",
+    "alredy": "already",
+}
+
+
+def normalize_query_text(query_text: str) -> str:
+    """Normalize common typos in user procurement/invoicing queries."""
+    if not query_text:
+        return ""
+    return re.sub(
+        r"\b[a-zA-Z]+\b",
+        lambda m: _TYPO_CORRECTIONS.get(m.group(0).lower(), m.group(0)),
+        query_text,
+    )
+
+
 def build_or_tsquery(query_text: str) -> str:
     """
     Convert natural language text into a safe PostgreSQL OR-joined tsquery string.
@@ -35,7 +66,8 @@ def build_or_tsquery(query_text: str) -> str:
     single conversational word like 'last' or 'please' is missing), OR-joining
     meaningful tokens lets ts_rank_cd score partial matches accurately.
     """
-    raw_tokens = re.findall(r"[a-zA-Z0-9]+", query_text.lower())
+    normalized = normalize_query_text(query_text)
+    raw_tokens = re.findall(r"[a-zA-Z0-9]+", normalized.lower())
     filtered = [t for t in raw_tokens if len(t) > 1 and t not in _TS_STOPWORDS]
     tokens = filtered or [t for t in raw_tokens if t]
     # Deduplicate while preserving order
@@ -75,8 +107,9 @@ class HybridSearchService:
         query_vector: List[float],
         dimension: int,
         limit: int = 20,
+        tenant_id: str = "default",
     ) -> List[SearchCandidate]:
-        """Dense semantic search over kb_chunks using pgvector cosine distance."""
+        """Dense semantic search over tenant-scoped kb_chunks using pgvector cosine distance."""
         aligned = align_embedding_dimension(query_vector, dimension)
         vector_str = f"[{','.join(str(x) for x in aligned)}]"
 
@@ -94,12 +127,14 @@ class HybridSearchService:
                 page,
                 1.0 - {dist_expr} AS cosine_sim
             FROM kb_chunks
-            WHERE embedding IS NOT NULL
+            WHERE embedding IS NOT NULL AND tenant_id = :tenant_id
             ORDER BY {dist_expr} ASC
             LIMIT :limit
         """)
 
-        res = await self.session.execute(sql, {"query_vec": vector_str, "limit": limit})
+        res = await self.session.execute(
+            sql, {"query_vec": vector_str, "limit": limit, "tenant_id": tenant_id}
+        )
         return [
             SearchCandidate(
                 chunk_id=r.chunk_id,
@@ -116,8 +151,9 @@ class HybridSearchService:
         self,
         query_text: str,
         limit: int = 20,
+        tenant_id: str = "default",
     ) -> List[SearchCandidate]:
-        """Lexical full-text search over kb_chunks using OR-joined to_tsquery."""
+        """Lexical full-text search over tenant-scoped kb_chunks using OR-joined to_tsquery."""
         ts_expr = build_or_tsquery(query_text)
         if not ts_expr:
             return []
@@ -131,12 +167,15 @@ class HybridSearchService:
                 page,
                 ts_rank_cd(to_tsvector('english', text), to_tsquery('english', :q)) AS bm25_score
             FROM kb_chunks
-            WHERE to_tsvector('english', text) @@ to_tsquery('english', :q)
+            WHERE tenant_id = :tenant_id
+              AND to_tsvector('english', text) @@ to_tsquery('english', :q)
             ORDER BY bm25_score DESC
             LIMIT :limit
         """)
 
-        res = await self.session.execute(sql, {"q": ts_expr, "limit": limit})
+        res = await self.session.execute(
+            sql, {"q": ts_expr, "limit": limit, "tenant_id": tenant_id}
+        )
         return [
             SearchCandidate(
                 chunk_id=r.chunk_id,
@@ -180,13 +219,20 @@ class HybridSearchService:
         merged.sort(key=lambda c: c.rrf_score, reverse=True)
         return merged[:top_k]
 
-    async def search_hybrid(self, query_text: str, limit: int = 10) -> List[SearchCandidate]:
-        """Run dense + BM25 search over kb_chunks and fuse with RRF."""
+    async def search_hybrid(
+        self,
+        query_text: str,
+        limit: int = 10,
+        tenant_id: str = "default",
+    ) -> List[SearchCandidate]:
+        """Run dense + BM25 search over tenant-scoped kb_chunks and fuse with RRF."""
         settings = get_settings()
         provider = EmbeddingProviderFactory.get_provider()
         query_vector = await provider.embed_query(query_text)
         target_dim = settings.embedding_dimension
 
-        dense_cands = await self.search_dense(query_vector, dimension=target_dim, limit=limit * 2)
-        bm25_cands = await self.search_bm25(query_text, limit=limit * 2)
+        dense_cands = await self.search_dense(
+            query_vector, dimension=target_dim, limit=limit * 2, tenant_id=tenant_id
+        )
+        bm25_cands = await self.search_bm25(query_text, limit=limit * 2, tenant_id=tenant_id)
         return self.reciprocal_rank_fusion(dense_cands, bm25_cands, top_k=limit)

@@ -1,0 +1,9 @@
+DISPUTE CASE FILE: PP-D-20418
+=============================
+Dispute ID: PP-D-20418
+Counterparty: Meridian Global Freight (carlos@meridianlogistics.com)
+Transaction ID: TXN-9910421
+Disputed Amount: $1,950.00 USD
+Reason Code: DUPLICATE_TRANSACTION
+Status: OPEN — Seller Evidence Matches Buyer Duplicate Claim
+Notes: Accept refund via accept_dispute_claim for PP-D-20418 OR reconcile against INVOICE_007 discrepancy.

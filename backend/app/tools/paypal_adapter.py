@@ -133,7 +133,12 @@ async def _call_real_paypal(
 def _mock_response(tool_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
     """Generate realistic, parameter-aware mock responses for all 50 tools."""
     amount = params.get("amount", "$500.00")
-    recipient = params.get("recipient") or params.get("recipient_email") or "vendor@example.com"
+    recipient = (
+        params.get("recipient")
+        or params.get("recipient_email")
+        or params.get("recipient_name")
+        or "vendor@example.com"
+    )
     invoice_id = params.get("invoice_id", "INV-2026-0042")
     po_id = params.get("po_id", "PO-2026-0188")
     dispute_id = params.get("dispute_id", "PP-D-12345")
@@ -234,16 +239,18 @@ def _mock_response(tool_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
         },
         "get_invoice": {
             "invoice_id": invoice_id,
-            "status": "SENT",
+            "status": params.get("audit_status") or params.get("status") or "SENT",
             "amount": amount,
             "recipient": recipient,
+            **({"due_date": params["due_date"]} if params.get("due_date") else {}),
+            **({"sent_at": params["sent_at"]} if params.get("sent_at") else {}),
         },
         "list_invoices": {
-            "invoices": [
+            "invoices": (params.get("recent_audit_invoices") or []) + [
                 {"invoice_id": "INV-2026-0041", "status": "PAID", "amount": "$2,400.00"},
                 {"invoice_id": "INV-2026-0042", "status": "SENT", "amount": "$500.00"},
             ],
-            "total_count": 2,
+            "total_count": len(params.get("recent_audit_invoices") or []) + 2,
         },
         "cancel_invoice": {"invoice_id": invoice_id, "status": "CANCELLED"},
         "remind_invoice": {
@@ -313,7 +320,7 @@ def _mock_response(tool_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
             "dispute_id": dispute_id,
             "status": "OPEN",
             "reason": "ITEM_NOT_RECEIVED",
-            "amount": "$250.00",
+            "amount": params.get("amount", "$250.00"),
             "buyer": user_id,
             "opened_date": "2026-11-05",
         },
@@ -324,8 +331,12 @@ def _mock_response(tool_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
             ],
             "open_count": 1,
         },
-        "accept_dispute_claim": {"dispute_id": dispute_id, "status": "RESOLVED_REFUNDED"},
-        "provide_dispute_evidence": {"dispute_id": dispute_id, "status": "WAITING_FOR_BUYER_RESPONSE"},
+        "accept_dispute_claim": {"dispute_id": dispute_id, "amount": amount, "status": "RESOLVED_REFUNDED"},
+        "provide_dispute_evidence": {
+            "dispute_id": dispute_id,
+            "status": "WAITING_FOR_BUYER_RESPONSE",
+            **({"evidence": params["evidence"]} if params.get("evidence") else {}),
+        },
         "escalate_dispute": {"dispute_id": dispute_id, "status": "UNDER_REVIEW"},
         "get_dispute_messages": {
             "dispute_id": dispute_id,
@@ -343,8 +354,10 @@ def _mock_response(tool_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
         },
         "approve_purchase_order": {
             "po_id": po_id,
+            "vendor": vendor,
+            "amount": amount,
             "status": "APPROVED",
-            "message": f"Purchase order {po_id} approved for fulfillment.",
+            "message": f"Purchase order {po_id} ({vendor}, {amount}) approved for fulfillment.",
         },
         "get_purchase_order": {
             "po_id": po_id,

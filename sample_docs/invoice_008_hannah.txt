@@ -1,0 +1,15 @@
+INVOICE RECORD: INVOICE_008 (INV-2026-008)
+==========================================
+Invoice ID: INVOICE_008
+Reference PO: N/A (Superseded Draft)
+Status: SENT — Requested Cancellation by Billing Lead
+Issue Date: 2026-11-03
+Due Date: 2026-12-03
+
+Bill To:
+  Recipient: Hannah Abbott <hannah@novahealth.org>
+  Company: NovaHealth Clinical Systems
+  Billing Contact: hannah@novahealth.org
+
+Total Amount Due: $4,100.00
+Notes: Duplicate draft accidentally dispatched; cancel INVOICE_008 via cancel_invoice and notify hannah@novahealth.org.

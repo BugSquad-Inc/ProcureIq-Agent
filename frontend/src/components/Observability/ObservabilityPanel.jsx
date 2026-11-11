@@ -173,6 +173,22 @@ export default function ObservabilityPanel({ sessionId }) {
                   <td>
                     <div className="mono">{t.tool_name}</div>
                     <div className="muted">{t.domain}</div>
+                    {t.execution_steps?.length > 0 && (
+                      <div className="step-timeline" style={{ marginTop: 8 }}>
+                        {t.execution_steps.map((s, idx) => (
+                          <div key={`${t.step}-${idx}`} className="step-row">
+                            <span className={`step-dot ${s.status || "completed"}`} />
+                            <div className="step-body">
+                              <div className="step-head">
+                                <strong>{s.title || s.node}</strong>
+                                <span className="muted mono">{s.duration_ms ?? 0} ms</span>
+                              </div>
+                              <div className="step-detail">{s.detail}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </td>
                   <td className="mono">{JSON.stringify(t.extracted_params)}</td>
                   <td className="mono">

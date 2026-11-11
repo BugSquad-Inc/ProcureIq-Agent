@@ -1,0 +1,24 @@
+INVOICE RECORD: INVOICE_001 (INV-001)
+========================================
+Invoice ID: INVOICE_001
+Reference PO: PO-2026-0188
+Status: Ready to Send (Approved for Billing)
+Issue Date: 2026-11-01
+Due Date: 2026-12-01
+
+Bill To:
+  Recipient: Mike Thompson <mike@acmecorp.com>
+  Company: Acme Corp Enterprise IT
+  Billing Contact: mike@acmecorp.com
+
+Line Items:
+  1. GPU Inference Node Rack Deployment (Qty 2) ........ $1,950.00
+  2. Annual Managed Support & Monitoring Add-on ......... $500.00
+
+Subtotal: $2,450.00
+Tax: $0.00 (Tax-Exempt Enterprise Contract)
+Total Amount Due: $2,450.00
+Payment Terms: Net 30
+
+Notes: Send official digital invoice INVOICE_001 directly to Mike Thompson at mike@acmecorp.com via PayPal Invoicing.
+

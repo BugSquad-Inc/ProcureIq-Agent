@@ -2,14 +2,17 @@
 models.py — SQLAlchemy ORM models for ProcureIQ Agent.
 
 Tables:
-  tools          — Tool Registry (name, domain, description, embedding, schema)
-  kb_chunks      — Knowledge Base chunks for the RAG Tool
-  sessions       — Chat session metadata
-  audit_log      — Immutable record of every agent action
+  tools                   — Tool Registry (name, domain, description, embedding, schema)
+  kb_chunks               — Multi-tenant Knowledge Base chunks for the RAG Tool
+  sessions                — Multi-tenant Chat session metadata
+  audit_log               — Multi-tenant Immutable record of every agent action
+  agent_checkpoints       — Durable LangGraph state checkpoints
+  agent_checkpoint_blobs  — Durable LangGraph channel value blobs
+  agent_checkpoint_writes — Durable LangGraph pending channel writes
 """
 import uuid
 from sqlalchemy import (
-    Column, String, Text, Boolean, DateTime, Integer, func,
+    Column, String, Text, Boolean, DateTime, Integer, LargeBinary, func,
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from pgvector.sqlalchemy import HALFVEC
@@ -43,6 +46,7 @@ class KBChunk(Base):
     __tablename__ = "kb_chunks"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(String(64), nullable=False, default="default", server_default="default", index=True)
     document_name = Column(String(256), nullable=False)
     section_title = Column(String(256), nullable=True)
     text = Column(Text, nullable=False)
@@ -56,6 +60,7 @@ class Session(Base):
     __tablename__ = "sessions"
 
     id = Column(String(64), primary_key=True)              # supplied by caller
+    tenant_id = Column(String(64), nullable=False, default="default", server_default="default", index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     metadata_ = Column("metadata", JSONB, default={})
@@ -66,6 +71,7 @@ class AuditLog(Base):
     __tablename__ = "audit_log"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(String(64), nullable=False, default="default", server_default="default", index=True)
     session_id = Column(String(64), nullable=False, index=True)
     action = Column(String(128), nullable=False)   # e.g. "tool_called", "rag_query"
     domain = Column(String(64), nullable=True)
@@ -73,3 +79,45 @@ class AuditLog(Base):
     payload = Column(JSONB, default={})
     result_summary = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class AgentCheckpoint(Base):
+    """Durable LangGraph checkpoint record (survives server restarts & multi-worker setups)."""
+    __tablename__ = "agent_checkpoints"
+
+    thread_id = Column(String(128), primary_key=True)
+    checkpoint_ns = Column(String(128), primary_key=True, default="", server_default="")
+    checkpoint_id = Column(String(128), primary_key=True)
+    parent_checkpoint_id = Column(String(128), nullable=True)
+    type = Column(String(64), nullable=False)
+    checkpoint = Column(LargeBinary, nullable=False)
+    metadata_type = Column(String(64), nullable=False)
+    metadata_blob = Column(LargeBinary, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class AgentCheckpointBlob(Base):
+    """Durable LangGraph channel value blob storage."""
+    __tablename__ = "agent_checkpoint_blobs"
+
+    thread_id = Column(String(128), primary_key=True)
+    checkpoint_ns = Column(String(128), primary_key=True, default="", server_default="")
+    channel = Column(String(128), primary_key=True)
+    version = Column(String(128), primary_key=True)
+    type = Column(String(64), nullable=False)
+    blob = Column(LargeBinary, nullable=True)
+
+
+class AgentCheckpointWrite(Base):
+    """Durable LangGraph pending writes storage (for interrupts & parallel branches)."""
+    __tablename__ = "agent_checkpoint_writes"
+
+    thread_id = Column(String(128), primary_key=True)
+    checkpoint_ns = Column(String(128), primary_key=True, default="", server_default="")
+    checkpoint_id = Column(String(128), primary_key=True)
+    task_id = Column(String(128), primary_key=True)
+    idx = Column(Integer, primary_key=True)
+    channel = Column(String(128), nullable=False)
+    type = Column(String(64), nullable=True)
+    blob = Column(LargeBinary, nullable=False)
+    task_path = Column(String(256), nullable=False, default="", server_default="")

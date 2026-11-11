@@ -1,0 +1,20 @@
+INVOICE RECORD: INVOICE_005 (INV-2026-005)
+==========================================
+Invoice ID: INVOICE_005
+Reference PO: PO-2026-0303
+Status: PARTIALLY PAID — Wire Settlement Pending Posting
+Issue Date: 2026-10-18
+Due Date: 2026-11-18
+
+Bill To:
+  Recipient: David Kim <david.kim@quantledger.ai>
+  Company: QuantLedger Financial Feeds
+  Billing Contact: david.kim@quantledger.ai
+
+Line Items:
+  1. Level-2 Equities & Options Tick Stream ............... $1,120.00
+  2. Historical Normalized CSV Backfill ................... $300.00
+
+Total Amount Due: $1,420.00
+Wire Confirmation Ref: WIRE-QL-88120
+Notes: Record offline wire payment via record_invoice_payment for INVOICE_005 ($1,420.00).

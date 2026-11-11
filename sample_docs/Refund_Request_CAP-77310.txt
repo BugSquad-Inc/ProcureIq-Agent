@@ -1,0 +1,8 @@
+APPROVED REFUND WORKSHEET: CAP-77310
+====================================
+Capture ID: CAP-77310
+Original Transaction: TXN-8840192
+Customer / Counterparty: john@example.com
+Original Captured Amount: $2,450.00
+Refund Requested: $640.00 (Returned unused 10GbE SFP+ transceiver bundle)
+Approval Status: RMA #RMA-4410 Verified — Ready for refund_payment

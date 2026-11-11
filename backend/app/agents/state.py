@@ -2,8 +2,6 @@
 state.py — LangGraph AgentState definition for ProcureIQ.
 
 The state is the single source of truth passed between every graph node.
-Using TypedDict + Annotated[list, add_messages] ensures LangGraph correctly
-merges message lists across multi-turn conversations instead of overwriting them.
 """
 from __future__ import annotations
 
@@ -13,13 +11,21 @@ from langgraph.graph.message import add_messages
 from langchain_core.messages import BaseMessage
 
 
+def _merge_execution_steps(
+    existing: Optional[List[Dict[str, Any]]],
+    update: Optional[List[Dict[str, Any]]],
+) -> List[Dict[str, Any]]:
+    """Append step traces within a turn; reset cleanly when a new turn begins."""
+    if update and len(update) == 1 and update[0].get("__reset__"):
+        return []
+    return list(existing or []) + list(update or [])
+
+
 class AgentState(TypedDict):
     # ── Conversation ──────────────────────────────────────────────────────────
-    # LangGraph appends messages; never overwrite this field manually.
     messages: Annotated[List[BaseMessage], add_messages]
 
     # ── Routing ───────────────────────────────────────────────────────────────
-    # Domain: "payments" | "invoicing" | "analytics" | "disputes" | "procurement" | "rag" | "system" | "general"
     domain: Optional[str]
     intent: Optional[str]
 
@@ -34,12 +40,18 @@ class AgentState(TypedDict):
 
     # ── Human-in-the-Loop ─────────────────────────────────────────────────────
     require_hitl: bool
+    confirm_all: Optional[bool]
     requires_confirmation: bool
     hitl_approved: Optional[bool]
     pending_action: Optional[Dict[str, Any]]
 
+    # ── Step-by-Step Pipeline Execution Trace ─────────────────────────────────
+    execution_steps: Annotated[List[Dict[str, Any]], _merge_execution_steps]
+
     # ── Output & Session ──────────────────────────────────────────────────────
     final_response: Optional[str]
     session_id: str
+    tenant_id: str
+    user_role: Optional[str]
     trace_id: Optional[str]
     retrieval_latency_ms: Optional[float]

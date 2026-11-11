@@ -32,11 +32,15 @@ HISTORY_KEYWORDS = {
 }
 
 
-async def execute_system_search(query: str, session_id: str) -> Dict[str, Any]:
-    """Route to tool capability search or audit request history search."""
+async def execute_system_search(
+    query: str,
+    session_id: str,
+    tenant_id: str = "default",
+) -> Dict[str, Any]:
+    """Route to tool capability search or tenant-scoped audit request history search."""
     lower = query.lower()
     if any(kw in lower for kw in HISTORY_KEYWORDS):
-        return await _search_history(session_id, limit=10)
+        return await _search_history(session_id, limit=10, tenant_id=tenant_id)
     return await _search_tools(query, limit=8)
 
 
@@ -64,12 +68,19 @@ async def _search_tools(query: str, limit: int = 8) -> Dict[str, Any]:
     }
 
 
-async def _search_history(session_id: str, limit: int = 10) -> Dict[str, Any]:
-    """Return recent agent actions for this session from the audit log."""
+async def _search_history(
+    session_id: str,
+    limit: int = 10,
+    tenant_id: str = "default",
+) -> Dict[str, Any]:
+    """Return recent agent actions for this session & tenant from the audit log."""
     async with AsyncSessionLocal() as session:
         stmt = (
             select(AuditLog)
-            .where(AuditLog.session_id == session_id)
+            .where(
+                AuditLog.session_id == session_id,
+                AuditLog.tenant_id == tenant_id,
+            )
             .order_by(desc(AuditLog.created_at))
             .limit(limit)
         )

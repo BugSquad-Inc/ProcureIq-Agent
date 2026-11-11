@@ -1,0 +1,10 @@
+DISPUTE CASE FILE: PP-D-30912
+=============================
+Dispute ID: PP-D-30912
+Counterparty: CloudScale Infrastructure Inc. (emma@cloudscale.io)
+Transaction ID: TXN-9941208
+Disputed Amount: $4,200.00 USD
+Reason Code: SERVICE_SLA_CREDIT_DISPUTE
+Status: UNDER_REVIEW — Counter-Evidence Deadline 2026-11-22
+Summary: Client claims p99 API latency exceeded 400ms during Q3 rollout; internal telemetry shows 99.97% SLA uptime (187ms p99).
+Action: Upload uptime log evidence bundle SLA-LOG-Q3 via provide_dispute_evidence or escalate via escalate_dispute.

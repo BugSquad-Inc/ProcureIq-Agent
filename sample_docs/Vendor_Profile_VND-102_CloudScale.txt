@@ -1,0 +1,10 @@
+VENDOR MASTER PROFILE: VND-102
+==============================
+Vendor ID: VND-102
+Legal Name: CloudScale Infrastructure Inc.
+Primary Contact: Emma Watson <emma@cloudscale.io>
+Category: Cloud GPU & Object Storage
+Tax Status: W-9 Verified
+Compliance Standing: APPROVED TIER-1 (SOC2 Type II Valid)
+Standard Terms: Net 21
+YTD Spend: $112,800.00

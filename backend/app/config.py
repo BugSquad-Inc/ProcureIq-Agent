@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     embedding_model: str = "Qwen/Qwen3-Embedding-4B"
     embedding_dimension: int = 2560
     qwen_base_url: str = "http://localhost:11434"   # Ollama / vLLM / llama-server endpoint (optional)
+    qwen_use_http_first: bool = False               # Prefer shared HTTP Qwen server before local GPU weights
     # Local BGE fallback (used when embedding_provider="local")
     local_embedding_model: str = "BAAI/bge-base-en-v1.5"
     local_embedding_dimension: int = 768
@@ -43,7 +44,7 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.5-flash-lite"
     gemini_embedding_model: str = "gemini-embedding-001"
-    gemini_verify_ssl: bool = False
+    gemini_verify_ssl: bool = True
 
     # ── LangGraph / Agent ─────────────────────────────────────────────────────
     # Number of tools to retrieve per query (keep ≤ 7 for LLM focus)
@@ -68,6 +69,16 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8000
 
+    # ── Security, Auth, RBAC & Multi-Tenancy ─────────────────────────────────
+    auth_enabled: bool = False  # Enforced automatically when environment="production"
+    auth_secret_key: str = "procureiq-dev-secret-change-in-production"
+    auth_token_expire_minutes: int = 480
+    api_keys_csv: str = ""      # Optional "key:tenant_id:role:user_id,..." mapping
+    rate_limit_rpm: int = 120   # Sliding-window requests per minute per IP (0 disables)
+    default_tenant_id: str = "default"
+    po_vp_approval_threshold: float = 25000.0
+    use_durable_checkpointer: bool = True
+
     # ── CORS ──────────────────────────────────────────────────────────────────
     cors_origins: List[str] = [
         "http://localhost:3000",
@@ -76,6 +87,11 @@ class Settings(BaseSettings):
         "http://localhost:5175",
         "http://127.0.0.1:5175",
     ]
+
+    @property
+    def effective_auth_enabled(self) -> bool:
+        """Require cryptographic Bearer JWT or valid X-API-Key."""
+        return bool(self.auth_enabled or self.environment.lower() == "production")
 
 
 @lru_cache()

@@ -1,6 +1,7 @@
-from typing import List, Tuple, Optional
 import asyncio
 from dataclasses import dataclass
+import re
+from typing import List, Optional, Tuple
 import structlog
 from app.core.embedding.base import get_torch_unavailable_reason, mark_torch_unavailable
 from app.core.hybrid_search import SearchCandidate
@@ -9,12 +10,48 @@ from app.config import get_settings
 logger = structlog.get_logger("rag_enterprise.reranking")
 
 
+def compute_intent_multiplier(query_text: str, candidate_text: str) -> float:
+    """
+    Safety multiplier preventing destructive/mutating tools (`cancel_*`, `send_*`, `create_*`)
+    from outranking read/lookup tools when the user asks a pure read/status query
+    (e.g., "get me the mike invoice already sent").
+    """
+    from app.core.hybrid_search import normalize_query_text
+
+    norm_q = normalize_query_text(query_text).lower()
+    cand_low = candidate_text.lower()
+
+    has_cancel = bool(re.search(r"\b(cancel|void|abort|delete|revoke|terminate)\b", norm_q))
+    if not has_cancel and re.search(r"\b(cancel|void|abort|delete|revoke|terminate)\b", cand_low):
+        return 0.55
+
+    has_lookup = bool(
+        re.search(
+            r"\b(get|fetch|check|find|retrieve|show|view|already sent|was sent|status|details|is there)\b",
+            norm_q,
+        )
+    )
+    has_send_or_create = bool(
+        re.search(
+            r"(?<!already\s)(?<!was\s)\b(send|email|deliver|dispatch|mail|remind|create|draft|issue|generate)\b",
+            norm_q,
+        )
+    )
+    if has_lookup and not has_send_or_create and re.search(r"\b(send|remind|create)\b", cand_low):
+        return 0.65
+
+    return 1.0
+
+
 def lexical_alignment_score(text_a: str, text_b: str) -> float:
     """Fast no-model alignment score with explainable domain concept aliases."""
     import re
+    from app.core.hybrid_search import normalize_query_text
 
-    words_a = set(re.findall(r"[a-z0-9]+", text_a.lower()))
-    words_b = set(re.findall(r"[a-z0-9]+", text_b.lower()))
+    norm_a = normalize_query_text(text_a)
+    norm_b = normalize_query_text(text_b)
+    words_a = set(re.findall(r"[a-z0-9]+", norm_a.lower()))
+    words_b = set(re.findall(r"[a-z0-9]+", norm_b.lower()))
     if not words_a or not words_b:
         return 0.0
     jaccard = len(words_a & words_b) / len(words_a | words_b)
@@ -39,16 +76,18 @@ def lexical_alignment_score(text_a: str, text_b: str) -> float:
         "minimum_commitment": r"\b(not less than|minimum|guarantees?|shall maintain)\b",
         # Procurement / Payment / FinTech tool alignment concepts
         "invoicing": r"\b(invoices?|bills?|billing|receipts?|statements?)\b",
-        "payment_action": r"\b(pay|payments?|send|transfer|wire|payouts?|disburse)\b",
+        "payment_action": r"\b(pay|payments?|transfer|wire|payouts?|disburse)\b",
+        "send_action": r"\b(?<!already\s)(?<!was\s)\b(send|email|deliver|dispatch|mail)\b",
+        "cancel_action": r"\b(cancel|void|abort|delete|revoke|terminate)\b",
         "disputes": r"\b(disputes?|chargebacks?|claims?|refunds?|complaints?|escalate)\b",
         "analytics": r"\b(sales|revenue|spend|total|volume|report|analytics|summary|breakdown)\b",
         "purchase_order": r"\b(purchase orders?|pos?|requisitions?|procure|rfq|quotes?)\b",
         "creation": r"\b(create|new|draft|issue|generate|place|register|submit)\b",
-        "lookup": r"\b(get|fetch|check|find|retrieve|status|details|view|track|is there)\b",
+        "lookup": r"\b(get|fetch|check|find|retrieve|status|details|view|track|already sent|is there)\b",
         "listing": r"\b(list|all|show|history|recent|search|filter)\b",
     }
 
-    lowered_a, lowered_b = text_a.lower(), text_b.lower()
+    lowered_a, lowered_b = norm_a.lower(), norm_b.lower()
     concepts_a = {name for name, pattern in concept_patterns.items() if re.search(pattern, lowered_a)}
     concepts_b = {name for name, pattern in concept_patterns.items() if re.search(pattern, lowered_b)}
     shared_concepts = concepts_a & concepts_b
@@ -58,7 +97,8 @@ def lexical_alignment_score(text_a: str, text_b: str) -> float:
         concept_jaccard = len(shared_concepts) / len(concepts_a | concepts_b)
         concept_score = 0.62 * concept_containment + 0.38 * concept_jaccard
 
-    return round(min(1.0, max(word_score, concept_score)), 4)
+    score = min(1.0, max(word_score, concept_score)) * compute_intent_multiplier(text_a, text_b)
+    return round(score, 4)
 
 
 @dataclass
@@ -135,6 +175,7 @@ class CrossEncoderReranker:
             else:
                 norm_score = val
 
+            norm_score *= compute_intent_multiplier(query_text, cand.text)
             results.append(
                 RerankResult(
                     candidate=cand,

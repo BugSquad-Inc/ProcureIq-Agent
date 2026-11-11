@@ -1,0 +1,21 @@
+INVOICE RECORD: INVOICE_003 (INV-003) — RECONCILIATION FLAG
+===============================================================
+Invoice ID: INVOICE_003
+Reference Order: ORD-2026-8801
+Reference PO: PO-2026-0188
+Status: Discrepancy Detected (Pending Review)
+Issue Date: 2026-11-09
+Due Date: 2026-11-30
+
+Bill From:
+  Recipient: John Miller <john@example.com>
+  Vendor: John Miller Consulting
+
+Line Items:
+  1. Infrastructure Audit & Tuning (10 hrs @ $142/hr) .. $1,420.00
+
+Quoted Contract Amount: $1,310.00
+Total Amount Due: $1,420.00
+Discrepancy Variance: +8.40% (+$110.00 above approved PO rate — exceeds 1.5% SLA threshold)
+Recommended Tool: flag_invoice_discrepancy
+

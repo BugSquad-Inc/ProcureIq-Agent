@@ -1,0 +1,22 @@
+ENTERPRISE VENDOR & COUNTERPARTY CONTACT DIRECTORY
+====================================================
+
+1. Mike Thompson — Accounts Payable & Procurement Lead, Acme Corp
+   Email: mike@acmecorp.com
+   Vendor ID: vendor_acme_01
+   Default Settlement Method: PayPal Invoice (Net 30)
+
+2. John Miller — Senior Infrastructure Supplier
+   Email: john@example.com
+   Vendor ID: vendor_john_02
+   Default Settlement Method: PayPal Direct Transfer
+
+3. Sarah Chen — Logistics & Freight Compliance Manager, Global Freight
+   Email: sarah@globalfreight.com
+   Vendor ID: vendor_gf_03
+   Default Settlement Method: Automated ACH / PayPal Payout
+
+4. Alex Rivera (Customer ID: user_123) — Enterprise Buyer Account
+   Email: alex.rivera@clientco.com
+   Account Status: Active (Open Dispute Watch)
+

@@ -12,6 +12,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete
 
+from app.core.embedding.hash_provider import HashEmbeddingProvider
 from app.core.resilience import CircuitBreaker, CircuitBreakerRegistry, CircuitOpenError
 from app.infrastructure.database.models import AuditLog, Session as DBSession, Tool
 from app.infrastructure.database.session import AsyncSessionLocal
@@ -144,30 +145,36 @@ async def test_500_tool_scale_benchmark_recall_and_latency(api_client: AsyncClie
         )
 
     try:
-        async with AsyncSessionLocal() as db:
-            counts = await upsert_tools_batch(db, synthetic_450, overwrite_existing=False)
-            assert counts["created"] == 450
+        # Benchmark PostgreSQL pgvector HNSW + BM25 scaling locally without hitting external LLM rate limits
+        offline_provider = HashEmbeddingProvider()
+        with patch(
+            "app.core.embedding.factory.EmbeddingProviderFactory.get_provider",
+            return_value=offline_provider,
+        ):
+            async with AsyncSessionLocal() as db:
+                counts = await upsert_tools_batch(db, synthetic_450, overwrite_existing=False)
+                assert counts["created"] == 450
 
-        hits = 0
-        latencies = []
-        for case in benchmark_cases:
-            resp = await api_client.post(
-                "/api/tools/retrieve",
-                json={"query": case["query"], "top_k": 5},
-            )
-            assert resp.status_code == 200
-            data = resp.json()
-            assert data["tools_retrieved"] == 5
-            assert data["total_active_tools"] >= 500
-            latencies.append(data["latency_ms"])
-            retrieved_names = {t["name"] for t in data["tools"]}
-            if retrieved_names & set(case["expected_any"]):
-                hits += 1
+            hits = 0
+            latencies = []
+            for case in benchmark_cases:
+                resp = await api_client.post(
+                    "/api/tools/retrieve",
+                    json={"query": case["query"], "top_k": 5},
+                )
+                assert resp.status_code == 200
+                data = resp.json()
+                assert data["tools_retrieved"] == 5
+                assert data["total_active_tools"] >= 500
+                latencies.append(data["latency_ms"])
+                retrieved_names = {t["name"] for t in data["tools"]}
+                if retrieved_names & set(case["expected_any"]):
+                    hits += 1
 
-        recall_at_5 = hits / len(benchmark_cases)
-        avg_latency = sum(latencies) / len(latencies)
-        assert recall_at_5 >= 0.875, f"500-tool Recall@5 dropped to {hits}/{len(benchmark_cases)}"
-        assert avg_latency < 200.0, f"500-tool mean latency too high: {avg_latency} ms"
+            recall_at_5 = hits / len(benchmark_cases)
+            avg_latency = sum(latencies) / len(latencies)
+            assert recall_at_5 >= 0.875, f"500-tool Recall@5 dropped to {hits}/{len(benchmark_cases)}"
+            assert avg_latency < 200.0, f"500-tool mean latency too high: {avg_latency} ms"
     finally:
         async with AsyncSessionLocal() as db:
             await db.execute(delete(Tool).where(Tool.name.like(f"{prefix}%")))

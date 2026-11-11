@@ -1,0 +1,8 @@
+PAYMENT AUTHORIZATION RECORD: AUTH-55910
+========================================
+Authorization ID: AUTH-55910
+Payer: Treasury Operating Account
+Recipient: carlos@meridianlogistics.com
+Hold Amount: $2,150.00 USD
+Purpose: High-value climate-controlled hardware transit security hold
+Expiration: 72 hours from issuance

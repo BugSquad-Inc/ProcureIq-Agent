@@ -1,0 +1,19 @@
+INVOICE RECORD: INVOICE_009 (INV-2026-009)
+==========================================
+Invoice ID: INVOICE_009
+Reference PO: PO-2026-0305
+Status: READY TO SEND
+Issue Date: 2026-11-10
+Due Date: 2026-12-10
+
+Bill To:
+  Recipient: Rajesh Patel <raj@alphafintech.io>
+  Company: Alpha FinTech Hardware
+  Billing Contact: raj@alphafintech.io
+
+Line Items:
+  1. Dual-Homed FIX Gateway Appliance (x2) ................ $7,400.00
+  2. Solarflare Low-Latency NICs .......................... $1,500.00
+
+Total Amount Due: $8,900.00
+Notes: Ready for dispatch to raj@alphafintech.io via send_invoice.

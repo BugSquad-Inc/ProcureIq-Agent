@@ -1,0 +1,8 @@
+PAYPAL ORDER AUTHORIZATION RECORD: ORD-88210
+==========================================
+Order ID: ORD-88210
+Merchant / Vendor: Acme Corp Enterprise IT (mike@acmecorp.com)
+Authorized Amount: $3,400.00 USD
+Authorization Status: APPROVED — Ready to Capture
+Valid Until: 2026-11-18
+Action: Execute capture_order for ORD-88210 upon warehouse rack check-in.

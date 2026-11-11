@@ -25,8 +25,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings
 from app.core.embedding.base import align_embedding_dimension
 from app.core.embedding.factory import EmbeddingProviderFactory
-from app.core.hybrid_search import SearchCandidate, build_or_tsquery
-from app.core.reranking import CrossEncoderReranker, get_cross_encoder_reranker
+from app.core.hybrid_search import SearchCandidate, build_or_tsquery, normalize_query_text
+from app.core.reranking import CrossEncoderReranker, compute_intent_multiplier, get_cross_encoder_reranker
 from app.infrastructure.database.models import Tool
 
 try:
@@ -107,6 +107,7 @@ class ToolRetriever:
         started = time.perf_counter()
         settings = get_settings()
         provider = EmbeddingProviderFactory.get_provider()
+        normalized_query = normalize_query_text(query_text)
 
         active_domain = domain if (domain and domain != "general") else None
         candidate_pool = max(top_k * 4, 20)
@@ -114,14 +115,14 @@ class ToolRetriever:
         total_active = await self._count_active_tools()
 
         dense_rows = await self._search_dense(
-            query_text=query_text,
+            query_text=normalized_query,
             provider=provider,
             target_dim=settings.embedding_dimension,
             domain=active_domain,
             limit=candidate_pool,
         )
         bm25_rows = await self._search_bm25(
-            query_text=query_text,
+            query_text=normalized_query,
             domain=active_domain,
             limit=candidate_pool,
         )
@@ -131,20 +132,20 @@ class ToolRetriever:
             logger.info("domain_filter_empty_widening_search", domain=active_domain)
             active_domain = None
             dense_rows = await self._search_dense(
-                query_text=query_text,
+                query_text=normalized_query,
                 provider=provider,
                 target_dim=settings.embedding_dimension,
                 domain=None,
                 limit=candidate_pool,
             )
             bm25_rows = await self._search_bm25(
-                query_text=query_text,
+                query_text=normalized_query,
                 domain=None,
                 limit=candidate_pool,
             )
 
         fused = self._fuse_and_rerank_candidates(
-            query_text=query_text,
+            query_text=normalized_query,
             dense_rows=dense_rows,
             bm25_rows=bm25_rows,
             top_k=top_k,
@@ -352,10 +353,9 @@ class ToolRetriever:
             tool = id_by_cand_uuid[rr.candidate.chunk_id]
             tool.rerank_score = rr.reranker_score
             norm_rrf = tool.rrf_score / max_rrf
-            tool.final_score = round(
-                0.45 * norm_rrf + 0.35 * tool.rerank_score + 0.20 * tool.cosine_sim,
-                4,
-            )
+            raw_final = 0.45 * norm_rrf + 0.35 * tool.rerank_score + 0.20 * tool.cosine_sim
+            raw_final *= compute_intent_multiplier(query_text, rr.candidate.text)
+            tool.final_score = round(raw_final, 4)
             output.append(tool)
 
         output.sort(key=lambda t: (t.final_score, t.rrf_score, t.cosine_sim), reverse=True)

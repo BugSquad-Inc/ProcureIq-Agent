@@ -1,0 +1,22 @@
+INVOICE RECORD: INVOICE_002 (INV-002)
+========================================
+Invoice ID: INVOICE_002
+Reference PO: PO-2026-0215
+Status: Ready to Send
+Issue Date: 2026-11-08
+Due Date: 2026-12-10
+
+Bill To:
+  Recipient: Sarah Chen <sarah@globalfreight.com>
+  Company: Global Freight Logistics
+  Billing Contact: sarah@globalfreight.com
+
+Line Items:
+  1. Cold-Chain Customs & Air Freight Brokerage ....... $5,400.00
+  2. Priority Carrier Manifest Tracking Package ....... $1,450.00
+
+Subtotal: $6,850.00
+Tax: $0.00
+Total Amount Due: $6,850.00
+Payment Terms: Net 30
+

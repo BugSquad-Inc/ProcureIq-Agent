@@ -1,0 +1,10 @@
+MONTHLY SETTLEMENT & FEE RECONCILIATION: STL-NOV-2026
+=====================================================
+Settlement Batch: STL-NOV-2026
+Reporting Period: 2026-11-01 to 2026-11-30
+Gross Settled Volume: $148,920.00 USD
+PayPal Merchant Processing Fees: $3,112.40 USD (2.09% blended)
+Dispute Chargeback Adjustments: -$640.00 USD
+Net Treasury Deposit: $145,167.60 USD
+Reconciliation Variance: $0.00 (BALANCED)
+Tool Reference: get_settlement_report / export_transactions_csv
